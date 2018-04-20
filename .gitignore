@@ -1,2 +1,4 @@
 /vendor
 /aws-smtp-relay
+*.crt
+*.key

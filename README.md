@@ -7,6 +7,7 @@
 - [Installation](#installation)
 - [Usage](#usage)
   * [Options](#options)
+  * [TLS](#tls)
   * [Region](#region)
   * [Credentials](#credentials)
   * [Logging](#logging)
@@ -76,10 +77,43 @@ aws-smtp-relay --help
 Usage of aws-smtp-relay:
   -a string
     	TCP listen address (default ":1025")
+  -c string
+    	TLS cert file
   -h string
     	Server hostname
+  -k string
+    	TLS key file
   -n string
     	SMTP service name (default "AWS SMTP Relay")
+  -s	Require TLS via STARTTLS extension
+  -t	Listen for incoming TLS connections only
+```
+
+### TLS
+Edit the [openssl config file](tls/openssl.conf) and change `localhost` to your
+server hostname.
+
+Generate a self-signed certificate with a passphrase encrypted key:
+
+```sh
+openssl req -new -x509 -config tls/openssl.conf -days 24855 \
+  -out tls/default.crt \
+  -keyout /dev/stdout |
+  openssl rsa -aes256 -out tls/default.key
+```
+
+**Please note**:  
+> Encrypted key files are only supported if they contain a `DEK-Info` header,
+> stating the encryption method used.  
+> The `openssl req` command does not create this header if encryption is
+> enabled, which is why we pipe the unencrypted key output to the
+> `openssl rsa` command, which outputs an encrypted key file with the required
+> `DEK-Info` header.
+
+The key file passphrase must be provided as `TLS_KEY_PASS` environment variable:
+
+```sh
+TLS_KEY_PASS=$PASSPHRASE aws-smtp-relay -c tls/default.crt -k tls/default.key
 ```
 
 ### Region
