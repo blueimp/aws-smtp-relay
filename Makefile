@@ -7,10 +7,7 @@ PROJECT=aws-smtp-relay
 BIN_PATH = $(GOPATH)/bin/$(PROJECT)
 
 # Files that require a rebuild on change:
-DEPS = internal/relay/relay.go internal/smtpd/smtpd.go main.go
-
-# GO CLI set to vgo for automatic dependency resolution:
-GO_CLI ?= vgo
+DEPS = internal/relay/relay.go main.go
 
 
 # --- Main targets ---
@@ -19,7 +16,7 @@ all: $(PROJECT)
 
 # Runs the unit tests for all components:
 test:
-	@$(GO_CLI) test ./...
+	go test ./...
 
 # Installs the binary in $GOPATH/bin/:
 install: $(BIN_PATH)
@@ -45,8 +42,8 @@ clean:
 
 # Builds the project:
 $(PROJECT): $(DEPS)
-	$(GO_CLI) build
+	go build
 
 # Installs the binary in $GOPATH/bin/:
 $(BIN_PATH): $(DEPS)
-	$(GO_CLI) install
+	go install

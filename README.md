@@ -7,12 +7,12 @@
 - [Installation](#installation)
 - [Usage](#usage)
   * [Options](#options)
+  * [Authentication](#authentication)
   * [TLS](#tls)
   * [Region](#region)
   * [Credentials](#credentials)
   * [Logging](#logging)
 - [Development](#development)
-  * [Requirements](#requirements)
   * [Build](#build)
   * [Test](#test)
   * [Install](#install)
@@ -59,8 +59,8 @@ go get github.com/blueimp/aws-smtp-relay
 ```
 
 ## Usage
-By default, `aws-smtp-relay` listens on port `1025` on all interfaces when
-started without arguments:
+By default, `aws-smtp-relay` listens on port `1025` on all interfaces as open
+relay (without authentication) when started without arguments:
 
 ```sh
 aws-smtp-relay
@@ -81,12 +81,34 @@ Usage of aws-smtp-relay:
     	TLS cert file
   -h string
     	Server hostname
+  -i string
+    	Allowed client IPs (comma-separated)
   -k string
     	TLS key file
   -n string
     	SMTP service name (default "AWS SMTP Relay")
   -s	Require TLS via STARTTLS extension
   -t	Listen for incoming TLS connections only
+  -u string
+    	Authentication username
+```
+
+### Authentication
+To require authentication, supply the `-u username` option along with a
+[bcrypt](https://en.wikipedia.org/wiki/Bcrypt) encrypted password as
+`BCRYPT_HASH` environment variable:
+
+```sh
+PASSWORD_HASH=$(htpasswd -bnBC 10 '' password | tr -d ':\n')
+
+BCRYPT_HASH="$PASSWORD_HASH" aws-smtp-relay -u username
+```
+
+To limit the allowed IP addresses, supply a comma-separated list as `-i ips`
+option:
+
+```sh
+aws-smtp-relay -i 127.0.0.1,[::1]
 ```
 
 ### TLS
@@ -113,7 +135,7 @@ openssl req -new -x509 -config tls/openssl.conf -days 24855 \
 The key file passphrase must be provided as `TLS_KEY_PASS` environment variable:
 
 ```sh
-TLS_KEY_PASS=$PASSPHRASE aws-smtp-relay -c tls/default.crt -k tls/default.key
+TLS_KEY_PASS="$PASSPHRASE" aws-smtp-relay -c tls/default.crt -k tls/default.key
 ```
 
 ### Region
@@ -163,31 +185,18 @@ Errors are logged in the same format to `stderr`, with the `Error` property set:
 
 ## Development
 
-### Requirements
-First, clone the project via `go get` and then switch into its source directory:
+### Build
+First, clone the project and then switch into its source directory:
 
 ```sh
-go get github.com/blueimp/aws-smtp-relay
-cd "$GOPATH/src/github.com/blueimp/aws-smtp-relay"
+git clone https://github.com/blueimp/aws-smtp-relay.git
+cd aws-smtp-relay
 ```
 
 *Please note:*  
-This project relies on [vgo](https://github.com/golang/go/wiki/vgo) for
-automatic dependency resolution.
+This project relies on [Go modules](https://github.com/golang/go/wiki/Modules)
+for automatic dependency resolution.
 
-To use the original go tool instead, export the following environment variable:
-
-```sh
-export GO_CLI=go
-```
-
-And install the project dependencies:
-
-```sh
-go get ./...
-```
-
-### Build
 To build the project, run
 [Make](https://en.wikipedia.org/wiki/Make_\(software\)) in the repository
 directory, which creates the `aws-smtp-relay` binary:
