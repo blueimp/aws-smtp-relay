@@ -1,5 +1,5 @@
 *
 !internal/relay/relay.go
-!internal/smtpd/smtpd.go
 !main.go
 !go.mod
+!go.sum

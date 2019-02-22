@@ -47,7 +47,7 @@ A prebuilt Docker image is also available on
 [Docker Hub](https://hub.docker.com/r/blueimp/aws-smtp-relay/):
 
 ```sh
-docker pull blueimp/aws-smtp-relay
+docker run blueimp/aws-smtp-relay --help
 ```
 
 ## Installation
