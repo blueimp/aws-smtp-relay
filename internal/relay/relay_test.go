@@ -54,21 +54,6 @@ func sendHelper(
 	return testData.input, stdout, stderr
 }
 
-func TestNetAddrToString(t *testing.T) {
-	origin := net.TCPAddr{IP: []byte{127, 0, 0, 1}}
-	str := relay.NetAddrToString(&origin)
-	if str != "127.0.0.1" {
-		t.Errorf("Unexpected IP string: %s", str)
-	}
-	origin = net.TCPAddr{IP: []byte{
-		0x20, 0x01, 0x48, 0x60, 0, 0, 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0x00, 0x68,
-	}}
-	str = relay.NetAddrToString(&origin)
-	if str != "[2001:4860:0:2001::68]" {
-		t.Errorf("Unexpected IP string: %s", str)
-	}
-}
-
 func TestSend(t *testing.T) {
 	origin := net.TCPAddr{IP: []byte{127, 0, 0, 1}}
 	from := "alice@example.org"
@@ -114,6 +99,21 @@ func TestSend(t *testing.T) {
 	}
 	if req.Error != "" {
 		t.Errorf("Unexpected 'Error' log: %s. Expected: %s", req.Error, "")
+	}
+	if len(err) != 0 {
+		t.Errorf("Unexpected stderr: %s", err)
+	}
+	origin = net.TCPAddr{IP: []byte{
+		0x20, 0x01, 0x48, 0x60, 0, 0, 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0x00, 0x68,
+	}}
+	_, out, err = sendHelper(&origin, &from, &to, &data)
+	json.Unmarshal(out, &req)
+	if req.IP != "2001:4860:0:2001::68" {
+		t.Errorf(
+			"Unexpected 'IP' log: %s. Expected: %s",
+			req.IP,
+			"2001:4860:0:2001::68",
+		)
 	}
 	if len(err) != 0 {
 		t.Errorf("Unexpected stderr: %s", err)

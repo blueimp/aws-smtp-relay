@@ -108,7 +108,7 @@ To limit the allowed IP addresses, supply a comma-separated list as `-i ips`
 option:
 
 ```sh
-aws-smtp-relay -i 127.0.0.1,[::1]
+aws-smtp-relay -i 127.0.0.1,::1
 ```
 
 ### TLS

@@ -43,7 +43,7 @@ func authHandler(
 	shared []byte,
 ) (bool, error) {
 	if *ips != "" {
-		ip := relay.NetAddrToString(remoteAddr)
+		ip := remoteAddr.(*net.TCPAddr).IP.String()
 		if ipMap[ip] != true {
 			return false, errors.New("Invalid client IP: " + ip)
 		}

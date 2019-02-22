@@ -140,7 +140,7 @@ func TestOptions(t *testing.T) {
 		"-u",
 		"username",
 		"-i",
-		"127.0.0.1,[2001:4860:0:2001::68]",
+		"127.0.0.1,2001:4860:0:2001::68",
 	)
 	os.Setenv("BCRYPT_HASH", sampleHash)
 	srv, err = server()
@@ -168,7 +168,7 @@ func TestOptions(t *testing.T) {
 	if string(bcryptHash) != sampleHash {
 		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
 	}
-	if *ips != "127.0.0.1,[2001:4860:0:2001::68]" {
+	if *ips != "127.0.0.1,2001:4860:0:2001::68" {
 		t.Errorf("Unexpected IPs string: %s", *ips)
 	}
 	if len(ipMap) != 2 {
@@ -202,11 +202,27 @@ func TestOptions(t *testing.T) {
 
 func TestAuthHandler(t *testing.T) {
 	*user = "username"
-	*ips = "127.0.0.1,[2001:4860:0:2001::68]"
-	ipMap = map[string]bool{"127.0.0.1": true, "[2001:4860:0:2001::68]": true}
+	*ips = "127.0.0.1,2001:4860:0:2001::68"
+	ipMap = map[string]bool{"127.0.0.1": true, "2001:4860:0:2001::68": true}
 	bcryptHash = []byte(sampleHash)
 	origin := net.TCPAddr{IP: []byte{127, 0, 0, 1}}
 	success, err := authHandler(
+		&origin,
+		"LOGIN",
+		[]byte("username"),
+		[]byte("password"),
+		nil,
+	)
+	if success != true {
+		t.Errorf("Unexpected authentication failure.")
+	}
+	if err != nil {
+		t.Errorf("Unexpected authentication error.")
+	}
+	origin = net.TCPAddr{IP: []byte{
+		0x20, 0x01, 0x48, 0x60, 0, 0, 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0x00, 0x68,
+	}}
+	success, err = authHandler(
 		&origin,
 		"LOGIN",
 		[]byte("username"),

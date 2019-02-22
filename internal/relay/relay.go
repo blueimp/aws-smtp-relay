@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/ses"
@@ -23,18 +22,9 @@ type Request struct {
 	err   *error
 }
 
-// NetAddrToString returns a string representation for a given net.Addr
-func NetAddrToString(addr net.Addr) string {
-	ip := addr.(*net.TCPAddr).IP.String()
-	if strings.IndexByte(ip, ':') >= 0 {
-		ip = "[" + ip + "]"
-	}
-	return ip
-}
-
 // Log prints the Request data to Stdout/Stderr
 func (req *Request) Log() {
-	req.IP = NetAddrToString(req.addr)
+	req.IP = req.addr.(*net.TCPAddr).IP.String()
 	var out *os.File
 	err := *req.err
 	if err != nil {
