@@ -45,12 +45,12 @@ func authHandler(
 	if *ips != "" {
 		ip := relay.NetAddrToString(remoteAddr)
 		if ipMap[ip] != true {
-			return false, errors.New("Invalid client IP")
+			return false, errors.New("Invalid client IP: " + ip)
 		}
 	}
 	if *user != "" {
 		if string(username) != *user {
-			return false, errors.New("Invalid username")
+			return false, errors.New("Invalid username: " + string(username))
 		}
 		err := bcrypt.CompareHashAndPassword(bcryptHash, password)
 		return err == nil, err
