@@ -32,6 +32,7 @@ func sendHelper(
 	from *string,
 	to *[]string,
 	data *[]byte,
+	setName *string,
 ) (email *ses.SendRawEmailInput, out []byte, err []byte) {
 	outReader, outWriter, _ := os.Pipe()
 	errReader, errWriter, _ := os.Pipe()
@@ -45,7 +46,7 @@ func sendHelper(
 	os.Stdout = outWriter
 	os.Stderr = errWriter
 	func() {
-		relay.Send(&mockSESAPI{}, origin, from, to, data)
+		relay.Send(&mockSESAPI{}, origin, from, to, data, setName)
 		outWriter.Close()
 		errWriter.Close()
 	}()
@@ -59,8 +60,9 @@ func TestSend(t *testing.T) {
 	from := "alice@example.org"
 	to := []string{"bob@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
+	setName := ""
 	timeBefore := time.Now()
-	input, out, err := sendHelper(&origin, &from, &to, &data)
+	input, out, err := sendHelper(&origin, &from, &to, &data, &setName)
 	timeAfter := time.Now()
 	if *input.Source != from {
 		t.Errorf(
@@ -106,7 +108,7 @@ func TestSend(t *testing.T) {
 	origin = net.TCPAddr{IP: []byte{
 		0x20, 0x01, 0x48, 0x60, 0, 0, 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0x00, 0x68,
 	}}
-	_, out, err = sendHelper(&origin, &from, &to, &data)
+	_, out, err = sendHelper(&origin, &from, &to, &data, &setName)
 	json.Unmarshal(out, &req)
 	if req.IP != "2001:4860:0:2001::68" {
 		t.Errorf(
