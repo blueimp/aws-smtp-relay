@@ -22,7 +22,7 @@ var (
 	host     = flag.String("h", "", "Server hostname")
 	certFile = flag.String("c", "", "TLS cert file")
 	keyFile  = flag.String("k", "", "TLS key file")
-	setName	 = flag.String("r", "", "Amazon SES Configuration Set Name")
+	setName  = flag.String("r", "", "Amazon SES Configuration Set Name")
 	startTLS = flag.Bool("s", false, "Require TLS via STARTTLS extension")
 	onlyTLS  = flag.Bool("t", false, "Listen for incoming TLS connections only")
 	ips      = flag.String("i", "", "Allowed client IPs (comma-separated)")
