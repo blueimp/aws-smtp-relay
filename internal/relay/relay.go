@@ -61,8 +61,8 @@ func Send(
 	}
 	_, err = sesAPI.SendRawEmail(&ses.SendRawEmailInput{
 		ConfigurationSetName: setName,
-		Source:       from,
-		Destinations: destinations,
-		RawMessage:   &ses.RawMessage{Data: *data},
+		Source:               from,
+		Destinations:         destinations,
+		RawMessage:           &ses.RawMessage{Data: *data},
 	})
 }
