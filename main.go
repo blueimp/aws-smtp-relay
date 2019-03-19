@@ -1,4 +1,4 @@
-package main // import "github.com/blueimp/aws-smtp-relay"
+package main
 
 import (
 	"errors"
