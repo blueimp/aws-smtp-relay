@@ -44,6 +44,7 @@ func Send(
 	from *string,
 	to *[]string,
 	data *[]byte,
+	setName *string,
 ) {
 	var err error
 	req := &Request{
@@ -55,12 +56,13 @@ func Send(
 	}
 	defer req.Log()
 	destinations := []*string{}
-	for _, v := range *to {
-		destinations = append(destinations, &v)
+	for k := range *to {
+		destinations = append(destinations, &(*to)[k])
 	}
 	_, err = sesAPI.SendRawEmail(&ses.SendRawEmailInput{
-		Source:       from,
-		Destinations: destinations,
-		RawMessage:   &ses.RawMessage{Data: *data},
+		ConfigurationSetName: setName,
+		Source:               from,
+		Destinations:         destinations,
+		RawMessage:           &ses.RawMessage{Data: *data},
 	})
 }

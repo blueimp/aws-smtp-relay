@@ -32,6 +32,7 @@ func sendHelper(
 	from *string,
 	to *[]string,
 	data *[]byte,
+	setName *string,
 ) (email *ses.SendRawEmailInput, out []byte, err []byte) {
 	outReader, outWriter, _ := os.Pipe()
 	errReader, errWriter, _ := os.Pipe()
@@ -45,7 +46,7 @@ func sendHelper(
 	os.Stdout = outWriter
 	os.Stderr = errWriter
 	func() {
-		relay.Send(&mockSESAPI{}, origin, from, to, data)
+		relay.Send(&mockSESAPI{}, origin, from, to, data, setName)
 		outWriter.Close()
 		errWriter.Close()
 	}()
@@ -59,8 +60,9 @@ func TestSend(t *testing.T) {
 	from := "alice@example.org"
 	to := []string{"bob@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
+	setName := ""
 	timeBefore := time.Now()
-	input, out, err := sendHelper(&origin, &from, &to, &data)
+	input, out, err := sendHelper(&origin, &from, &to, &data, &setName)
 	timeAfter := time.Now()
 	if *input.Source != from {
 		t.Errorf(
@@ -103,10 +105,18 @@ func TestSend(t *testing.T) {
 	if len(err) != 0 {
 		t.Errorf("Unexpected stderr: %s", err)
 	}
-	origin = net.TCPAddr{IP: []byte{
+}
+
+func TestSendWithOriginIPv6(t *testing.T) {
+	origin := net.TCPAddr{IP: []byte{
 		0x20, 0x01, 0x48, 0x60, 0, 0, 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0x00, 0x68,
 	}}
-	_, out, err = sendHelper(&origin, &from, &to, &data)
+	from := "alice@example.org"
+	to := []string{"bob@example.org"}
+	data := []byte{'T', 'E', 'S', 'T'}
+	setName := ""
+	_, out, err := sendHelper(&origin, &from, &to, &data, &setName)
+	var req relay.Request
 	json.Unmarshal(out, &req)
 	if req.IP != "2001:4860:0:2001::68" {
 		t.Errorf(
@@ -114,6 +124,43 @@ func TestSend(t *testing.T) {
 			req.IP,
 			"2001:4860:0:2001::68",
 		)
+	}
+	if req.Error != "" {
+		t.Errorf("Unexpected 'Error' log: %s. Expected: %s", req.Error, "")
+	}
+	if len(err) != 0 {
+		t.Errorf("Unexpected stderr: %s", err)
+	}
+}
+
+func TestSendWithMultipleRecipients(t *testing.T) {
+	origin := net.TCPAddr{IP: []byte{127, 0, 0, 1}}
+	from := "alice@example.org"
+	to := []string{"bob@example.org", "charlie@example.org"}
+	data := []byte{'T', 'E', 'S', 'T'}
+	setName := ""
+	input, out, err := sendHelper(&origin, &from, &to, &data, &setName)
+	if len(input.Destinations) != 2 {
+		t.Errorf(
+			"Unexpected number of destinations: %d. Expected: %d",
+			len(input.Destinations),
+			2,
+		)
+	}
+	if *input.Destinations[0] != to[0] {
+		t.Errorf(
+			"Unexpected destination: %s. Expected: %s",
+			*input.Destinations[0],
+			to[0],
+		)
+	}
+	var req relay.Request
+	json.Unmarshal(out, &req)
+	if req.To[0] != to[0] {
+		t.Errorf("Unexpected 'To' log: %s. Expected: %s", req.To, to)
+	}
+	if req.Error != "" {
+		t.Errorf("Unexpected 'Error' log: %s. Expected: %s", req.Error, "")
 	}
 	if len(err) != 0 {
 		t.Errorf("Unexpected stderr: %s", err)
