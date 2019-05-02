@@ -56,8 +56,8 @@ func Send(
 	}
 	defer req.Log()
 	destinations := []*string{}
-	for _, v := range *to {
-		destinations = append(destinations, &v)
+	for k := range *to {
+		destinations = append(destinations, &(*to)[k])
 	}
 	_, err = sesAPI.SendRawEmail(&ses.SendRawEmailInput{
 		ConfigurationSetName: setName,
