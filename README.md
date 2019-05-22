@@ -80,6 +80,8 @@ Usage of aws-smtp-relay:
     	TCP listen address (default ":1025")
   -c string
     	TLS cert file
+  -e string
+    Amazon SES Configuration Set Name
   -h string
     	Server hostname
   -i string
@@ -87,10 +89,10 @@ Usage of aws-smtp-relay:
   -k string
     	TLS key file
   -n string
-  -p    Use AWS Pinpoint instead of SES
-    	SMTP service name (default "AWS SMTP Relay")
   -s	Require TLS via STARTTLS extension
   -t	Listen for incoming TLS connections only
+  -r string
+    Relay API to use (ses|pinpoint) (default "ses")
   -u string
     	Authentication username
 ```
