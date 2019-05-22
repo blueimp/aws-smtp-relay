@@ -10,7 +10,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/pinpointemail"
 	"github.com/aws/aws-sdk-go/service/pinpointemail/pinpointemailiface"
-	"github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
+	"github.com/blueimp/aws-smtp-relay/internal/relay"
+	internal "github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
 )
 
 var testData = struct{ input *pinpointemail.SendEmailInput }{}
@@ -49,7 +50,7 @@ func sendHelper(
 	os.Stdout = outWriter
 	os.Stderr = errWriter
 	func() {
-		relay.Send(&mockPinpointEmailClient{}, origin, from, to, data, setName)
+		internal.Send(&mockPinpointEmailClient{}, origin, from, to, data, setName)
 		outWriter.Close()
 		errWriter.Close()
 	}()

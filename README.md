@@ -1,5 +1,5 @@
 # AWS SMTP Relay
-> SMTP server to relay emails via AWS SES or Pinpoint API using IAM roles.
+> SMTP server to relay emails via Amazon SES or Amazon Pinpoint using IAM roles.
 
 ## Contents
 - [Background](#background)
@@ -23,19 +23,19 @@
 
 ## Background
 [AWS SES](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/Welcome.html)
-and [Pinpoint](https://docs.aws.amazon.com/sdk-for-go/api/service/pinpointemail/) provide an
+and [Pinpoint](https://docs.aws.amazon.com/pinpoint/latest/developerguide/welcome.html) provide an
 [API](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-api.html)
 and an [SMTP interface](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-smtp.html)
 to send emails.
 
 The SMTP interface is useful for applications that must use SMTP to send emails,
-but it requires providing a set of
-[SES SMTP Credentials](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/smtp-credentials.html), 
-and these. credentials are shared to the Pinpoint API.
+but it requires providing a set of SMTP credentials:
+* [SES SMTP Credentials](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/smtp-credentials.html)
+* [Pinpoint SMTP Credentials](https://docs.aws.amazon.com/pinpoint/latest/userguide/channels-email-send-smtp.html#channels-email-send-smtp-credentials)
 
 For security reasons, using
 [IAM roles](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
-is preferable, but only possible with the SES and Pinpoint API's and not the SMTP interface.
+is preferable, but only possible with the SES/Pinpoint APIs and not the SMTP interface.
 
 This is where this project comes into play, as it provides an SMTP interface
 that relays emails via SES or Pinpoint API using IAM roles.

@@ -23,10 +23,10 @@ var (
 	host     = flag.String("h", "", "Server hostname")
 	certFile = flag.String("c", "", "TLS cert file")
 	keyFile  = flag.String("k", "", "TLS key file")
-	setName  = flag.String("r", "", "Amazon SES Configuration Set Name")
 	startTLS = flag.Bool("s", false, "Require TLS via STARTTLS extension")
 	onlyTLS  = flag.Bool("t", false, "Listen for incoming TLS connections only")
-	pinpoint = flag.Bool("p", false, "Use AWS Pinpoint instead of SES")
+	relay 	 = flag.String("r", "ses", "Relay API to use (ses|pinpoint)")
+	setName  = flag.String("e", "", "Amazon SES Configuration Set Name")
 	ips      = flag.String("i", "", "Allowed client IPs (comma-separated)")
 	user     = flag.String("u", "", "Authentication username")
 )
@@ -35,10 +35,11 @@ var ipMap map[string]bool
 var bcryptHash []byte
 
 func handler(origin net.Addr, from string, to []string, data []byte) {
-	if *pinpoint {
+	switch *relay {
+	case "pinpoint":
 		client := pinpointemail.New(session.Must(session.NewSession()))
 		pinpointrelay.Send(client, origin, &from, &to, &data, setName)
-	} else {
+	case "ses":
 		client := ses.New(session.Must(session.NewSession()))
 		sesrelay.Send(client, origin, &from, &to, &data, setName)
 	}

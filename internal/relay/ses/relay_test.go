@@ -10,7 +10,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/aws/aws-sdk-go/service/ses/sesiface"
-	"github.com/blueimp/aws-smtp-relay/internal/relay/ses"
+	"github.com/blueimp/aws-smtp-relay/internal/relay"
+	internal "github.com/blueimp/aws-smtp-relay/internal/relay/ses"
 )
 
 var testData = struct{ input *ses.SendRawEmailInput }{}
@@ -46,7 +47,7 @@ func sendHelper(
 	os.Stdout = outWriter
 	os.Stderr = errWriter
 	func() {
-		relay.Send(&mockSESAPI{}, origin, from, to, data, setName)
+		internal.Send(&mockSESAPI{}, origin, from, to, data, setName)
 		outWriter.Close()
 		errWriter.Close()
 	}()

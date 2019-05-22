@@ -1,4 +1,5 @@
 *
+!internal/relay/relay.go
 !internal/relay/pinpoint/relay.go
 !internal/relay/ses/relay.go
 !main.go
