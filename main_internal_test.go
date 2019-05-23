@@ -91,8 +91,9 @@ uEGsi+l2fTj/F+eZLE6sYoMprgJrbfeqtRWFguUgTn7s5hfU0tZ46al5d0vz8fWK
 	return
 }
 
-func TestOptions(t *testing.T) {
+func TestServer(t *testing.T) {
 	os.Args = []string{"noop"}
+	parseArgs()
 	srv, err := server()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
@@ -143,6 +144,7 @@ func TestOptions(t *testing.T) {
 		"127.0.0.1,2001:4860:0:2001::68",
 	)
 	os.Setenv("BCRYPT_HASH", sampleHash)
+	parseArgs()
 	srv, err = server()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
@@ -191,6 +193,7 @@ func TestOptions(t *testing.T) {
 		keyFile.Name(),
 	)
 	os.Setenv("TLS_KEY_PASS", passphrase)
+	parseArgs()
 	srv, err = server()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
