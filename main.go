@@ -4,15 +4,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"strings"
 
+	"github.com/blueimp/aws-smtp-relay/internal/auth"
 	"github.com/blueimp/aws-smtp-relay/internal/relay"
 	pinpointrelay "github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
 	sesrelay "github.com/blueimp/aws-smtp-relay/internal/relay/ses"
 	"github.com/mhale/smtpd"
-	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -33,29 +32,6 @@ var ipMap map[string]bool
 var bcryptHash []byte
 var relayClient relay.Client
 
-func authHandler(
-	remoteAddr net.Addr,
-	mechanism string,
-	username []byte,
-	password []byte,
-	shared []byte,
-) (bool, error) {
-	if *ips != "" {
-		ip := remoteAddr.(*net.TCPAddr).IP.String()
-		if ipMap[ip] != true {
-			return false, errors.New("Invalid client IP: " + ip)
-		}
-	}
-	if *user != "" {
-		if string(username) != *user {
-			return false, errors.New("Invalid username: " + string(username))
-		}
-		err := bcrypt.CompareHashAndPassword(bcryptHash, password)
-		return err == nil, err
-	}
-	return true, nil
-}
-
 func server() (srv *smtpd.Server, err error) {
 	srv = &smtpd.Server{
 		Addr:         *addr,
@@ -64,8 +40,8 @@ func server() (srv *smtpd.Server, err error) {
 		Hostname:     *host,
 		TLSRequired:  *startTLS,
 		TLSListener:  *onlyTLS,
-		AuthRequired: *ips != "" || *user != "",
-		AuthHandler:  authHandler,
+		AuthRequired: ipMap != nil || *user != "",
+		AuthHandler:  auth.New(ipMap, *user, bcryptHash).Handler,
 		AuthMechs:    map[string]bool{"CRAM-MD5": false},
 	}
 	if *certFile != "" && *keyFile != "" {
@@ -79,8 +55,7 @@ func server() (srv *smtpd.Server, err error) {
 	return
 }
 
-func parseArgs() error {
-	flag.Parse()
+func configure() error {
 	switch *relayAPI {
 	case "pinpoint":
 		relayClient = pinpointrelay.New(setName)
@@ -100,8 +75,9 @@ func parseArgs() error {
 }
 
 func main() {
+	flag.Parse()
 	var srv *smtpd.Server
-	err := parseArgs()
+	err := configure()
 	if err == nil {
 		srv, err = server()
 		if err == nil {
