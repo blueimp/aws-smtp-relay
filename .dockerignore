@@ -1,7 +1,9 @@
 *
+!internal/auth/auth.go
 !internal/relay/relay.go
 !internal/relay/pinpoint/relay.go
 !internal/relay/ses/relay.go
+!internal/request/request.go
 !main.go
 !go.mod
 !go.sum

@@ -22,11 +22,13 @@
 - [License](#license)
 
 ## Background
-[AWS SES](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/Welcome.html)
-and [Pinpoint](https://docs.aws.amazon.com/pinpoint/latest/developerguide/welcome.html) provide an
-[API](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-api.html)
-and an [SMTP interface](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-smtp.html)
-to send emails.
+[Amazon SES](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/Welcome.html)
+and [Amazon Pinpoint](https://docs.aws.amazon.com/pinpoint/latest/developerguide/welcome.html)
+both provide an API and an SMTP interface to send emails:
+* [SES Email API](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-api.html)
+* [SES SMTP interface](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-smtp.html)
+* [Pinpoint EmailAPI](https://docs.aws.amazon.com/pinpoint/latest/developerguide/send-messages-email-sdk.html)
+* [Pinpoint SMTP interface](https://docs.aws.amazon.com/pinpoint/latest/developerguide/send-messages-email-smtp.html)
 
 The SMTP interface is useful for applications that must use SMTP to send emails,
 but it requires providing a set of SMTP credentials:
@@ -35,7 +37,8 @@ but it requires providing a set of SMTP credentials:
 
 For security reasons, using
 [IAM roles](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
-is preferable, but only possible with the SES/Pinpoint APIs and not the SMTP interface.
+is preferable, but only possible with the Email API and not the SMTP
+interface.
 
 This is where this project comes into play, as it provides an SMTP interface
 that relays emails via SES or Pinpoint API using IAM roles.
@@ -81,7 +84,7 @@ Usage of aws-smtp-relay:
   -c string
     	TLS cert file
   -e string
-    Amazon SES Configuration Set Name
+    	Amazon SES Configuration Set Name
   -h string
     	Server hostname
   -i string
@@ -89,10 +92,11 @@ Usage of aws-smtp-relay:
   -k string
     	TLS key file
   -n string
+    	SMTP service name (default "AWS SMTP Relay")
+  -r string
+    	Relay API to use (ses|pinpoint) (default "ses")
   -s	Require TLS via STARTTLS extension
   -t	Listen for incoming TLS connections only
-  -r string
-    Relay API to use (ses|pinpoint) (default "ses")
   -u string
     	Authentication username
 ```
