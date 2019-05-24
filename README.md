@@ -1,5 +1,5 @@
 # AWS SMTP Relay
-> SMTP server to relay emails via AWS SES API using IAM roles.
+> SMTP server to relay emails via Amazon SES or Amazon Pinpoint using IAM roles.
 
 ## Contents
 - [Background](#background)
@@ -22,22 +22,26 @@
 - [License](#license)
 
 ## Background
-[AWS SES](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/Welcome.html)
-provides both an
-[API](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-api.html)
-and an [SMTP interface](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-smtp.html)
-to send emails.
+[Amazon SES](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/Welcome.html)
+and [Amazon Pinpoint](https://docs.aws.amazon.com/pinpoint/latest/developerguide/welcome.html)
+both provide an API and an SMTP interface to send emails:
+* [SES Email API](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-api.html)
+* [SES SMTP interface](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-smtp.html)
+* [Pinpoint EmailAPI](https://docs.aws.amazon.com/pinpoint/latest/developerguide/send-messages-email-sdk.html)
+* [Pinpoint SMTP interface](https://docs.aws.amazon.com/pinpoint/latest/developerguide/send-messages-email-smtp.html)
 
 The SMTP interface is useful for applications that must use SMTP to send emails,
-but it requires providing a set of
-[SES SMTP Credentials](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/smtp-credentials.html).
+but it requires providing a set of SMTP credentials:
+* [SES SMTP Credentials](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/smtp-credentials.html)
+* [Pinpoint SMTP Credentials](https://docs.aws.amazon.com/pinpoint/latest/userguide/channels-email-send-smtp.html#channels-email-send-smtp-credentials)
 
 For security reasons, using
 [IAM roles](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
-is preferable, but only possible with the SES API and not the SMTP interface.
+is preferable, but only possible with the Email API and not the SMTP
+interface.
 
 This is where this project comes into play, as it provides an SMTP interface
-that relays emails via SES API using IAM roles.
+that relays emails via SES or Pinpoint API using IAM roles.
 
 ## Docker
 This repository provides a sample [Dockerfile](Dockerfile) to build and run the
@@ -79,6 +83,8 @@ Usage of aws-smtp-relay:
     	TCP listen address (default ":1025")
   -c string
     	TLS cert file
+  -e string
+    	Amazon SES Configuration Set Name
   -h string
     	Server hostname
   -i string
@@ -87,6 +93,8 @@ Usage of aws-smtp-relay:
     	TLS key file
   -n string
     	SMTP service name (default "AWS SMTP Relay")
+  -r string
+    	Relay API to use (ses|pinpoint) (default "ses")
   -s	Require TLS via STARTTLS extension
   -t	Listen for incoming TLS connections only
   -u string

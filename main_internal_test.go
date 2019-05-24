@@ -1,17 +1,20 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
-	"net"
 	"os"
 	"testing"
+
+	pinpointrelay "github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
+	sesrelay "github.com/blueimp/aws-smtp-relay/internal/relay/ses"
 )
 
 // bcrypt hash for the string "password"
 var sampleHash = "$2y$10$85/eICRuwBwutrou64G5HeoF3Ek/qf1YKPLba7ckiMxUTAeLIeyaC"
 
-func createTmpFile(content string) (file *os.File, err error) {
-	file, err = ioutil.TempFile("", "")
+func createTmpFile(content string) (fileName *string, err error) {
+	file, err := ioutil.TempFile("", "")
 	if err != nil {
 		return
 	}
@@ -20,12 +23,14 @@ func createTmpFile(content string) (file *os.File, err error) {
 		return
 	}
 	err = file.Close()
+	name := file.Name()
+	fileName = &name
 	return
 }
 
 func createTLSFiles() (
-	certFile *os.File,
-	keyFile *os.File,
+	certFile *string,
+	keyFile *string,
 	passphrase string,
 	err error,
 ) {
@@ -91,8 +96,109 @@ uEGsi+l2fTj/F+eZLE6sYoMprgJrbfeqtRWFguUgTn7s5hfU0tZ46al5d0vz8fWK
 	return
 }
 
-func TestOptions(t *testing.T) {
+func resetHelper() {
 	os.Args = []string{"noop"}
+	flag.Parse()
+	*addr = ":1025"
+	*name = "AWS SMTP Relay"
+	*host = ""
+	*certFile = ""
+	*keyFile = ""
+	*startTLS = false
+	*onlyTLS = false
+	*relayAPI = "ses"
+	*setName = ""
+	*ips = ""
+	*user = ""
+	ipMap = nil
+	bcryptHash = nil
+	relayClient = nil
+	os.Unsetenv("BCRYPT_HASH")
+	os.Unsetenv("TLS_KEY_PASS")
+}
+
+func TestConfigure(t *testing.T) {
+	resetHelper()
+	err := configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if *user != "" {
+		t.Errorf("Unexpected username: %s", *user)
+	}
+	if string(bcryptHash) != "" {
+		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
+	}
+	if *ips != "" {
+		t.Errorf("Unexpected IPs string: %s", *ips)
+	}
+	if len(ipMap) != 0 {
+		t.Errorf("Unexpected IP map size: %d", len(ipMap))
+	}
+	_, ok := interface{}(relayClient).(sesrelay.Client)
+	if !ok {
+		t.Error("Unexpected: relayClient function is not an sesrelay.Client")
+	}
+	if string(bcryptHash) != "" {
+		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
+	}
+}
+
+func TestConfigureWithPinpointRelay(t *testing.T) {
+	resetHelper()
+	*relayAPI = "pinpoint"
+	err := configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	_, ok := interface{}(relayClient).(pinpointrelay.Client)
+	if !ok {
+		t.Error("Unexpected: relayClient function is not an sesrelay.Client")
+	}
+}
+
+func TestConfigureWithInvalidRelay(t *testing.T) {
+	resetHelper()
+	*relayAPI = "invalid"
+	err := configure()
+	if err == nil {
+		t.Error("Unexpected nil error")
+	}
+	if relayClient != nil {
+		t.Errorf("Unexpected relay client: %s", relayClient)
+	}
+}
+
+func TestConfigureWithBcryptHash(t *testing.T) {
+	resetHelper()
+	os.Setenv("BCRYPT_HASH", sampleHash)
+	err := configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if string(bcryptHash) != sampleHash {
+		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
+	}
+}
+
+func TestConfigureWithIPs(t *testing.T) {
+	resetHelper()
+	*ips = "127.0.0.1,2001:4860:0:2001::68"
+	err := configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if *ips != "127.0.0.1,2001:4860:0:2001::68" {
+		t.Errorf("Unexpected IPs string: %s", *ips)
+	}
+	if len(ipMap) != 2 {
+		t.Errorf("Unexpected IP map size: %d", len(ipMap))
+	}
+}
+
+func TestServer(t *testing.T) {
+	resetHelper()
+	configure()
 	srv, err := server()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
@@ -115,179 +221,67 @@ func TestOptions(t *testing.T) {
 	if srv.TLSListener != false {
 		t.Errorf("Unexpected TLS listener: %t", srv.TLSListener)
 	}
-	if *user != "" {
-		t.Errorf("Unexpected username: %s", *user)
-	}
-	if string(bcryptHash) != "" {
-		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
-	}
-	if *ips != "" {
-		t.Errorf("Unexpected IPs string: %s", *ips)
-	}
-	if len(ipMap) != 0 {
-		t.Errorf("Unexpected IP map size: %d", len(ipMap))
-	}
-	os.Args = append(
-		[]string{"noop"},
-		"-a",
-		"127.0.0.1:25",
-		"-n",
-		"BANANA",
-		"-h",
-		"localhost",
-		"-s",
-		"-t",
-		"-u",
-		"username",
-		"-i",
-		"127.0.0.1,2001:4860:0:2001::68",
-	)
-	os.Setenv("BCRYPT_HASH", sampleHash)
-	srv, err = server()
+}
+
+func TestServerWithCustomAddress(t *testing.T) {
+	resetHelper()
+	*addr = "127.0.0.1:25"
+	configure()
+	srv, err := server()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	if srv.Addr != os.Args[2] {
-		t.Errorf("Unexpected addr: %s. Expected: %s", srv.Addr, os.Args[2])
+	if srv.Addr != *addr {
+		t.Errorf("Unexpected addr: %s. Expected: %s", srv.Addr, *addr)
 	}
-	if srv.Appname != os.Args[4] {
-		t.Errorf("Unexpected addr: %s. Expected: %s", srv.Appname, os.Args[4])
+}
+
+func TestServerWithCustomAppname(t *testing.T) {
+	resetHelper()
+	*name = "Custom Appname"
+	configure()
+	srv, err := server()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
 	}
-	if srv.Hostname != os.Args[6] {
-		t.Errorf("Unexpected host: %s. Expected: %s", srv.Hostname, os.Args[6])
+	if srv.Appname != "Custom Appname" {
+		t.Errorf("Unexpected addr: %s. Expected: %s", srv.Appname, "Custom Appname")
 	}
-	if srv.TLSRequired != true {
-		t.Errorf("Unexpected TLS required: %t", srv.TLSRequired)
+}
+
+func TestServerWithCustomHostname(t *testing.T) {
+	resetHelper()
+	*host = "test"
+	configure()
+	srv, err := server()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
 	}
-	if srv.TLSListener != true {
-		t.Errorf("Unexpected TLS listener: %t", srv.TLSListener)
+	if srv.Hostname != "test" {
+		t.Errorf("Unexpected host: %s. Expected: %s", srv.Hostname, "test")
 	}
-	if *user != "username" {
-		t.Errorf("Unexpected username: %s", *user)
-	}
-	if string(bcryptHash) != sampleHash {
-		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
-	}
-	if *ips != "127.0.0.1,2001:4860:0:2001::68" {
-		t.Errorf("Unexpected IPs string: %s", *ips)
-	}
-	if len(ipMap) != 2 {
-		t.Errorf("Unexpected IP map size: %d", len(ipMap))
-	}
-	certFile, keyFile, passphrase, err := createTLSFiles()
+}
+
+func TestServerWithTLS(t *testing.T) {
+	resetHelper()
+	var passphrase string
+	var err error
+	certFile, keyFile, passphrase, err = createTLSFiles()
 	if err != nil {
 		t.Errorf("Unexpected TLS files creation error: %s", err)
 		return
 	}
 	defer func() {
-		os.Remove(certFile.Name())
-		os.Remove(keyFile.Name())
+		os.Remove(*certFile)
+		os.Remove(*keyFile)
 	}()
-	os.Args = append(
-		[]string{"noop"},
-		"-c",
-		certFile.Name(),
-		"-k",
-		keyFile.Name(),
-	)
 	os.Setenv("TLS_KEY_PASS", passphrase)
-	srv, err = server()
+	configure()
+	srv, err := server()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 	if srv.TLSConfig == nil {
 		t.Errorf("Unexpected empty TLS config.")
-	}
-}
-
-func TestAuthHandler(t *testing.T) {
-	*user = "username"
-	*ips = "127.0.0.1,2001:4860:0:2001::68"
-	ipMap = map[string]bool{"127.0.0.1": true, "2001:4860:0:2001::68": true}
-	bcryptHash = []byte(sampleHash)
-	origin := net.TCPAddr{IP: []byte{127, 0, 0, 1}}
-	success, err := authHandler(
-		&origin,
-		"LOGIN",
-		[]byte("username"),
-		[]byte("password"),
-		nil,
-	)
-	if success != true {
-		t.Errorf("Unexpected authentication failure.")
-	}
-	if err != nil {
-		t.Errorf("Unexpected authentication error.")
-	}
-	origin = net.TCPAddr{IP: []byte{
-		0x20, 0x01, 0x48, 0x60, 0, 0, 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0x00, 0x68,
-	}}
-	success, err = authHandler(
-		&origin,
-		"LOGIN",
-		[]byte("username"),
-		[]byte("password"),
-		nil,
-	)
-	if success != true {
-		t.Errorf("Unexpected authentication failure.")
-	}
-	if err != nil {
-		t.Errorf("Unexpected authentication error.")
-	}
-	success, err = authHandler(
-		&origin,
-		"LOGIN",
-		[]byte("username"),
-		[]byte("invalid"),
-		nil,
-	)
-	if success != false {
-		t.Errorf("Unexpected password authentication success.")
-	}
-	if err == nil {
-		t.Errorf("Unexpected missing password authentication error.")
-	}
-	success, err = authHandler(
-		&origin,
-		"LOGIN",
-		[]byte("invalid"),
-		[]byte("password"),
-		nil,
-	)
-	if success != false {
-		t.Errorf("Unexpected username authentication success.")
-	}
-	if err == nil {
-		t.Errorf("Unexpected missing username authentication error.")
-	}
-	*user = ""
-	origin = net.TCPAddr{IP: []byte{192, 168, 0, 1}}
-	success, err = authHandler(
-		&origin,
-		"",
-		nil,
-		nil,
-		nil,
-	)
-	if success != false {
-		t.Errorf("Unexpected IP authentication success.")
-	}
-	if err == nil {
-		t.Errorf("Unexpected missing IP authentication error.")
-	}
-	*ips = ""
-	success, err = authHandler(
-		&origin,
-		"",
-		nil,
-		nil,
-		nil,
-	)
-	if success != true {
-		t.Errorf("Unexpected IP authentication failure.")
-	}
-	if err != nil {
-		t.Errorf("Unexpected IP authentication error.")
 	}
 }
