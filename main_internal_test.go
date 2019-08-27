@@ -4,6 +4,7 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"testing"
 
 	pinpointrelay "github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
@@ -112,8 +113,10 @@ func resetHelper() {
 	*user = ""
 	ipMap = nil
 	bcryptHash = nil
+	password = nil
 	relayClient = nil
 	os.Unsetenv("BCRYPT_HASH")
+	os.Unsetenv("PASSWORD")
 	os.Unsetenv("TLS_KEY_PASS")
 }
 
@@ -178,6 +181,18 @@ func TestConfigureWithBcryptHash(t *testing.T) {
 	}
 	if string(bcryptHash) != sampleHash {
 		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
+	}
+}
+
+func TestConfigureWithPassword(t *testing.T) {
+	resetHelper()
+	os.Setenv("PASSWORD", "password")
+	err := configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if string(password) != "password" {
+		t.Errorf("Unexpected password: %s", string(password))
 	}
 }
 
@@ -259,6 +274,57 @@ func TestServerWithCustomHostname(t *testing.T) {
 	}
 	if srv.Hostname != "test" {
 		t.Errorf("Unexpected host: %s. Expected: %s", srv.Hostname, "test")
+	}
+}
+
+func TestServerWithIPs(t *testing.T) {
+	resetHelper()
+	*ips = "127.0.0.1,2001:4860:0:2001::68"
+	err := configure()
+	srv, err := server()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if srv.AuthRequired != true {
+		t.Errorf(
+			"Unexpected AuthRequired: %t. Expected: %t",
+			srv.AuthRequired,
+			true,
+		)
+	}
+	authMechs := map[string]bool{}
+	if !reflect.DeepEqual(srv.AuthMechs, authMechs) {
+		t.Errorf(
+			"Unexpected AuthMechs: %v. Expected: %v",
+			srv.AuthMechs,
+			authMechs,
+		)
+	}
+}
+
+func TestServerWithBcryptHash(t *testing.T) {
+	resetHelper()
+	*user = "username"
+	os.Setenv("BCRYPT_HASH", sampleHash)
+	err := configure()
+	srv, err := server()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if srv.AuthRequired != true {
+		t.Errorf(
+			"Unexpected AuthRequired: %t. Expected: %t",
+			srv.AuthRequired,
+			true,
+		)
+	}
+	authMechs := map[string]bool{"CRAM-MD5": false}
+	if !reflect.DeepEqual(srv.AuthMechs, authMechs) {
+		t.Errorf(
+			"Unexpected AuthMechs: %v. Expected: %v",
+			srv.AuthMechs,
+			authMechs,
+		)
 	}
 }
 

@@ -10,6 +10,8 @@
 - [Usage](#usage)
   - [Options](#options)
   - [Authentication](#authentication)
+    - [User](#user)
+    - [IP](#ip)
   - [TLS](#tls)
   - [Region](#region)
   - [Credentials](#credentials)
@@ -112,24 +114,74 @@ Usage of aws-smtp-relay:
 
 ### Authentication
 
-To require authentication, supply the `-u username` option along with a
+#### User
+
+The supported user-based SMTP authentication mechanisms and their
+required configuration settings (see also
+[RFC 4954](https://tools.ietf.org/html/rfc4954#section-9)):
+
+| Mechanism  | [TLS](#tls) | User | Hash | Pass |
+| ---------- | ----------- | ---- | ---- | ---- |
+| `LOGIN`    | Yes         | Yes  | Yes  | No   |
+| `PLAIN`    | Yes         | Yes  | Yes  | No   |
+| `CRAM-MD5` | No          | Yes  | No   | Yes  |
+
+Authentication can be enabled for `LOGIN` and `PLAIN` mechanisms by configuring
+[TLS](#tls) and a username and providing the
 [bcrypt](https://en.wikipedia.org/wiki/Bcrypt) encrypted password as
 `BCRYPT_HASH` environment variable:
 
 ```sh
-PASSWORD_HASH=$(htpasswd -bnBC 10 '' password | tr -d ':\n')
+export BCRYPT_HASH=$(htpasswd -bnBC 10 '' password | tr -d ':\n')
+export TLS_KEY_PASS="$PASSPHRASE"
 
-BCRYPT_HASH="$PASSWORD_HASH" aws-smtp-relay -u username
+aws-smtp-relay -c tls/default.crt -k tls/default.key -u username
 ```
 
-To limit the allowed IP addresses, supply a comma-separated list as `-i ips`
+If the password is provided as plain text `PASSWORD` environment variable, it
+will also enable the `CRAM-MD5` authentication mechanism:
+
+```sh
+export PASSWORD=password
+export TLS_KEY_PASS="$PASSPHRASE"
+
+aws-smtp-relay -c tls/default.crt -k tls/default.key -u username
+```
+
+Without [TLS](#tls) configuration, only `CRAM-MD5` will be enabled:
+
+```sh
+export PASSWORD=password
+
+aws-smtp-relay -u username
+```
+
+**Please note**:
+
+> It is not recommended to provide the password as plain text environment
+> variable, nor to configure the SMTP server without [TLS](#tls) support.
+
+#### IP
+
+To limit the allowed IP addresses, supply a comma-separated list via `-i ips`
 option:
 
 ```sh
 aws-smtp-relay -i 127.0.0.1,::1
 ```
 
+**Please note**:
+
+> To authorize their IP, clients must use a supported SMTP authentication
+> mechanism, e.g. `LOGIN` or `PLAIN` via [TLS](#tls) or `CRAM-MD5` on
+> unencrypted connections.  
+> This is required even if no user authentication is configured on the server,
+> although in this case the credentials can be chosen freely by the client.
+
 ### TLS
+
+Configure [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) with the
+following steps:
 
 Edit the [openssl config file](tls/openssl.conf) and change `localhost` to your
 server hostname.
@@ -152,11 +204,18 @@ openssl req -new -x509 -config tls/openssl.conf -days 24855 \
 > `openssl rsa` command, which outputs an encrypted key file with the required
 > `DEK-Info` header.
 
-The key file passphrase must be provided as `TLS_KEY_PASS` environment variable:
+Provide the key file passphrase as `TLS_KEY_PASS` environment variable and the
+cert and key file as command-line arguments:
 
 ```sh
 TLS_KEY_PASS="$PASSPHRASE" aws-smtp-relay -c tls/default.crt -k tls/default.key
 ```
+
+**Please note**:
+
+> It is recommended to require TLS via `STARTTLS` extension (`-s` option flag)
+> or to configure the server to listen for incoming TLS connections only
+> (`-t` option flag).
 
 ### Region
 
@@ -213,9 +272,10 @@ git clone https://github.com/blueimp/aws-smtp-relay.git
 cd aws-smtp-relay
 ```
 
-_Please note:_  
-This project relies on [Go modules](https://github.com/golang/go/wiki/Modules)
-for automatic dependency resolution.
+**Please note**:
+
+> This project relies on [Go modules](https://github.com/golang/go/wiki/Modules)
+> for automatic dependency resolution.
 
 To build the project, run
 [Make](<https://en.wikipedia.org/wiki/Make_(software)>) in the repository
@@ -238,6 +298,10 @@ Sending mails can also be tested with the provided [mail shell script](mail.sh):
 ```sh
 echo TEXT | ./mail.sh -p 1025 -f alice@example.org -t bob@example.org
 ```
+
+**Please note**:
+
+> The provided shell script only supports the `LOGIN` authentication mechanism.
 
 See also
 [Testing Amazon SES Email Sending](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/mailbox-simulator.html).

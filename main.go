@@ -30,9 +30,14 @@ var (
 
 var ipMap map[string]bool
 var bcryptHash []byte
+var password []byte
 var relayClient relay.Client
 
 func server() (srv *smtpd.Server, err error) {
+	authMechs := make(map[string]bool)
+	if *user != "" && len(bcryptHash) > 0 && len(password) == 0 {
+		authMechs["CRAM-MD5"] = false
+	}
 	srv = &smtpd.Server{
 		Addr:         *addr,
 		Handler:      relayClient.Send,
@@ -41,8 +46,8 @@ func server() (srv *smtpd.Server, err error) {
 		TLSRequired:  *startTLS,
 		TLSListener:  *onlyTLS,
 		AuthRequired: ipMap != nil || *user != "",
-		AuthHandler:  auth.New(ipMap, *user, bcryptHash).Handler,
-		AuthMechs:    map[string]bool{"CRAM-MD5": false},
+		AuthHandler:  auth.New(ipMap, *user, bcryptHash, password).Handler,
+		AuthMechs:    authMechs,
 	}
 	if *certFile != "" && *keyFile != "" {
 		keyPass := os.Getenv("TLS_KEY_PASS")
@@ -71,6 +76,7 @@ func configure() error {
 		}
 	}
 	bcryptHash = []byte(os.Getenv("BCRYPT_HASH"))
+	password = []byte(os.Getenv("PASSWORD"))
 	return nil
 }
 
