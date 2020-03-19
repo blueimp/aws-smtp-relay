@@ -1,7 +1,9 @@
 module github.com/blueimp/aws-smtp-relay
 
+go 1.14
+
 require (
-	github.com/aws/aws-sdk-go v1.23.10
+	github.com/aws/aws-sdk-go v1.23.22
 	github.com/mhale/smtpd v0.0.0-20181125220505-3c4c908952b8
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/stretchr/testify v1.4.0 // indirect
