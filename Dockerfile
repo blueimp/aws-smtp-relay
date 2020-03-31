@@ -1,4 +1,9 @@
 FROM golang:alpine as build
+# Define the target arch via docker build --platform and --build-arg arguments
+ARG TARGETARCH
+ARG GOARCH=$TARGETARCH
+ARG GOARM
+# Install git to be able to install dependencies
 RUN apk --no-cache add git
 WORKDIR /opt
 COPY . .
