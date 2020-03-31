@@ -16,6 +16,7 @@
   - [Region](#region)
   - [Credentials](#credentials)
   - [Logging](#logging)
+  - [Filtering](#filtering)
 - [Development](#development)
   - [Build](#build)
   - [Test](#test)
@@ -259,6 +260,18 @@ Errors are logged in the same format to `stderr`, with the `Error` property set:
   "To": ["bob@example.org"],
   "Error": "MissingRegion: could not find region configuration"
 }
+```
+
+### Filtering
+
+By setting the environment variable `EMAIL_DENY_REGEX`, the relay will not
+allow the emails to be sent if the `from` field matches a specific regex.
+
+The following example will prevent emails being sent when the `from` email
+ends with `com`.
+
+```shell script
+export EMAIL_DENY_REGEX="(.*.com)"
 ```
 
 ## Development

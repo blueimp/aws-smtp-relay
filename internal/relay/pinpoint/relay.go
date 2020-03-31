@@ -1,7 +1,10 @@
 package relay
 
 import (
+	"errors"
 	"net"
+	"os"
+	"regexp"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/pinpointemail"
@@ -25,6 +28,14 @@ func (c Client) Send(
 	destinations := []*string{}
 	for k := range to {
 		destinations = append(destinations, &(to)[k])
+	}
+	denyRegex := os.Getenv("EMAIL_DENY_REGEX")
+	if denyRegex != "" {
+		res, err := regexp.MatchString(denyRegex, from)
+		if res && err == nil {
+			request.Log(origin, from, to, errors.New("requested email matches regex for exclusion"))
+			return
+		}
 	}
 	_, err := c.pinpointAPI.SendEmail(&pinpointemail.SendEmailInput{
 		ConfigurationSetName: c.setName,
