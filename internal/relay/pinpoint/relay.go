@@ -32,9 +32,9 @@ func (c Client) Send(
 			res, _ := regexp.MatchString(denyRegex, to[k])
 			if !res {
 				request.Log(origin, from, to, errors.New("message cannot be sent to destination "+to[k]+", - email matches regex for exclusion"))
-			} else {
-				destinations = append(destinations, &(to)[k])
 			}
+		} else {
+			destinations = append(destinations, &(to)[k])
 		}
 	}
 	if denyRegex != "" {
