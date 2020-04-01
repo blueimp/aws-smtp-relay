@@ -265,10 +265,7 @@ Errors are logged in the same format to `stderr`, with the `Error` property set:
 ### Filtering
 
 By setting the environment variable `EMAIL_DENY_REGEX`, the relay will not
-allow the emails to be sent if the `from` field matches a specific regex.
-
-The following example will prevent emails being sent when the `from` email
-domain `example.com` and the email address `test@test.com`.
+allow the emails to be sent if the `to` or `from` fields match the regex.
 
 ```shell script
 export EMAIL_DENY_REGEX="(.*@example.com$)|(test@test.com)"

@@ -25,15 +25,22 @@ func (c Client) Send(
 	to []string,
 	data []byte,
 ) {
+	denyRegex := os.Getenv("EMAIL_DENY_REGEX")
 	destinations := []*string{}
 	for k := range to {
-		destinations = append(destinations, &(to)[k])
+		if denyRegex != "" {
+			res, _ := regexp.MatchString(denyRegex, to[k])
+			if !res {
+				request.Log(origin, from, to, errors.New("message cannot be sent to destination "+to[k]+", - email matches regex for exclusion"))
+			} else {
+				destinations = append(destinations, &(to)[k])
+			}
+		}
 	}
-	denyRegex := os.Getenv("EMAIL_DENY_REGEX")
 	if denyRegex != "" {
 		res, err := regexp.MatchString(denyRegex, from)
 		if res && err == nil {
-			request.Log(origin, from, to, errors.New("message not sent, sender email matches regex for exclusion"))
+			request.Log(origin, from, to, errors.New("message not sent, sender email ("+from+") matches regex for exclusion"))
 			return
 		}
 	}
