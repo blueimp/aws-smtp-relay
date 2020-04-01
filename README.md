@@ -268,10 +268,10 @@ By setting the environment variable `EMAIL_DENY_REGEX`, the relay will not
 allow the emails to be sent if the `from` field matches a specific regex.
 
 The following example will prevent emails being sent when the `from` email
-ends with `com`.
+domain `example.com` and the email address `test@test.com`.
 
 ```shell script
-export EMAIL_DENY_REGEX="(.*.com)"
+export EMAIL_DENY_REGEX="(.*@example.com$)|(test@test.com)"
 ```
 
 ## Development

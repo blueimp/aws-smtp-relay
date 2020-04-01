@@ -33,7 +33,7 @@ func (c Client) Send(
 	if denyRegex != "" {
 		res, err := regexp.MatchString(denyRegex, from)
 		if res && err == nil {
-			request.Log(origin, from, to, errors.New("requested email matches regex for exclusion"))
+			request.Log(origin, from, to, errors.New("message not sent, sender email matches regex for exclusion"))
 			return
 		}
 	}
