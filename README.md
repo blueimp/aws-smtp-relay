@@ -22,7 +22,7 @@
   - [Install](#install)
   - [Uninstall](#uninstall)
   - [Clean](#clean)
-- [Credits](#credits)
+- [Dependencies](#dependencies)
 - [License](#license)
 
 ## Background
@@ -331,9 +331,11 @@ To remove any build artifacts, run the following:
 make clean
 ```
 
-## Credits
+## Dependencies
 
-Includes the [smtpd](https://github.com/mhale/smtpd) package by Mark Hale.
+- [golang.org/x/crypto](https://pkg.go.dev/golang.org/x/crypto)
+- [github.com/mhale/smtpd](https://github.com/mhale/smtpd)
+- [github.com/aws/aws-sdk-go](https://github.com/aws/aws-sdk-go)
 
 ## License
 
