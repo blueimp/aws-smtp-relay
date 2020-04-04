@@ -11,31 +11,7 @@ import (
 	sesrelay "github.com/blueimp/aws-smtp-relay/internal/relay/ses"
 )
 
-// bcrypt hash for the string "password"
-var sampleHash = "$2y$10$85/eICRuwBwutrou64G5HeoF3Ek/qf1YKPLba7ckiMxUTAeLIeyaC"
-
-func createTmpFile(content string) (fileName *string, err error) {
-	file, err := ioutil.TempFile("", "")
-	if err != nil {
-		return
-	}
-	_, err = file.Write([]byte(content))
-	if err != nil {
-		return
-	}
-	err = file.Close()
-	name := file.Name()
-	fileName = &name
-	return
-}
-
-func createTLSFiles() (
-	certFile *string,
-	keyFile *string,
-	passphrase string,
-	err error,
-) {
-	const certPEM = `-----BEGIN CERTIFICATE-----
+const certPEM = `-----BEGIN CERTIFICATE-----
 MIIDRzCCAi+gAwIBAgIJAKtg4oViVwv4MA0GCSqGSIb3DQEBCwUAMBQxEjAQBgNV
 BAMMCWxvY2FsaG9zdDAgFw0xODA0MjAxMzMxNTBaGA8yMDg2MDUwODEzMzE1MFow
 FDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
@@ -56,7 +32,35 @@ u64gDTW4K0Tzx1ab7KmOFXYUjbz/xWuReMt33EwDXAErKCjbVt2T55Qx8UoKzSh1
 tY0KDHdnYOzgsm2HIj2xcJqbeylYQvckNnoC
 -----END CERTIFICATE-----`
 
-	const keyPEM = `-----BEGIN RSA PRIVATE KEY-----
+const keyPEM = `-----BEGIN RSA PRIVATE KEY-----
+MIIEpQIBAAKCAQEA8h7vl0gUquis5jRtcnETyD+8WITZO0s53aIzp0Y+9HXiHW6F
+GJjbOZjMIvozNVni+83QWKumRTgeSzIIW2j4V8iFMSNrvWmhmCKloesXS1aY6H97
+9e01Ve8JWAJFRe6vZJd6gC6Z/P+ELU3ie4Vtr1GYfkV7nZ6VFp5/V/5nxGFag5TU
+lpP5hcoS9r2kvXofosVwe3x3udT8SEbv5eBD4bKeVyJs/RLbxSuiU1358Y1cDdVu
+Hjcvfm3cajhheQ4vX9WXsk7LGGhnf1SrrPN/y+IDTXfvoHn+nJh4vMAB4yzQdE1V
+1N1AB8RA0yBVJ6dwxRrSg4BFrNWhj3gfsvrA7wIDAQABAoIBAQC4F7mIRzAfuwYr
+itVk3IF0ErH8hBY/tTTsRbYMi6a2bSNdyXi9eQvGwV0Fg0OIXy3s01KE+Q5VNxQh
+jIs6JZgd9sL+17XFsRlC+aUCdiOiDtf4f2YbWR7ilft+xUsynwcQ7vQfnk9LRGSV
+pdB8prj9Qoc2C1KwR7GIHz8oArGXaAu3URdaG63+fuDjngk61pKAU/LCziWImoB/
+PPSXpb1WwHSF8ifkelsdeeqIGf6gavtIVGPxZdlscE6yTN/Fh90pY8CwcSPWuOlf
+t0gZksz8y+emvOEcP+xIxpqGrbDU0KZnCdpFfW7kAElLzjXNhaoCH4WV0KaWXZHQ
+QromsehRAoGBAPmF/1vJKqLKBhei/p4Gjb95hwwb9cDvlG3K2WXfN7idCHra+6no
+GAUQ93VxSR/5xBR5IIOd+rW1QKoB0pWlX3HiQ/AhYHUG55OQhO4R8l1HC+7J+JlP
+ikCQKfDVjjZqBt1fQ3IX+CxlDTDYKyE4Wtr2UbOBbS4giGvheUn9CdXLAoGBAPhn
+wCkqXQ9Ketuyxjl/whuiCJZBC82zBTaUNdGuKJ2y7Q1+mofSuczpq1VtjPtzqbIt
+NX7CUL5zpj115A3h4mjHClKvFBr8+vcsM2syNKvIqBEReUaW9xNwoNxwTVgs87WJ
+c8wBkvJ7NlIzqE6pRzldgcNhMD1qjtMSbh7ZxPztAoGBAKCvpg6ZsZc7ukimcomZ
+dtcDj/BAYTZqEo/RvcZYxS1iEv/q3X5BNJauom1DEvBAjAETL9kSd01k98uDePVd
+leVk7JNLKy6xz5e7zZ7yd72R7yFLd4hjLIj/TcMGA5sPFHSi0HA891i/iosV6lBu
+VjQDxAFxK7o0wSWYAd+f0CGZAoGBAJ2tPczjly6dmF7cm/bjodLoh4rYvyVS/Xwn
+mAIBCscPTGnEc1LD8CyiJp+TamoygQUYrVxI+/focR2SN7CYMZ9QuLzDZX+8FZHP
+/NOOiuB//i7XaKPmL++nDnTe1DmkTw5ssZRNa3l/vHtxTuSfjxZaxIPArV5OxVo1
+2LC8is4BAoGAVkHp95y9j6C2NWnduPwSyvBK7DMrJA7U6gjK6a2yf8v/wOsMFIWm
+Qn5Tu7e19ROZr8DYaSjmPctCYVktBdsKtg33f8tHncf6bAFSIjYXy/1yfJlAR3BK
+2U1MOtwM3dSTbQ0s62k0XtruV6DsUj3UsTKET00GYLNI8yCyIZVfq3w=
+-----END RSA PRIVATE KEY-----`
+
+const keyEncryptedPEM = `-----BEGIN RSA PRIVATE KEY-----
 Proc-Type: 4,ENCRYPTED
 DEK-Info: AES-256-CBC,C16BF8745B2CDB53AC2B1D7609893AA0
 
@@ -87,13 +91,38 @@ f9k7s0xqhloWNPZcyOXMrox8L81WOY+sP4mVlGcfDRLdEJ8X2ofJpOAcwYCnjsKd
 uEGsi+l2fTj/F+eZLE6sYoMprgJrbfeqtRWFguUgTn7s5hfU0tZ46al5d0vz8fWK
 -----END RSA PRIVATE KEY-----`
 
-	passphrase = "test"
+// bcrypt hash for the string "password"
+var sampleHash = "$2y$10$85/eICRuwBwutrou64G5HeoF3Ek/qf1YKPLba7ckiMxUTAeLIeyaC"
 
+func createTmpFile(content string) (fileName *string, err error) {
+	file, err := ioutil.TempFile("", "")
+	if err != nil {
+		return
+	}
+	_, err = file.Write([]byte(content))
+	if err != nil {
+		return
+	}
+	err = file.Close()
+	name := file.Name()
+	fileName = &name
+	return
+}
+
+func createTLSFiles(passphrase string) (
+	certFile *string,
+	keyFile *string,
+	err error,
+) {
 	certFile, err = createTmpFile(certPEM)
 	if err != nil {
 		return
 	}
-	keyFile, err = createTmpFile(keyPEM)
+	if passphrase != "" {
+		keyFile, err = createTmpFile(keyEncryptedPEM)
+	} else {
+		keyFile, err = createTmpFile(keyPEM)
+	}
 	return
 }
 
@@ -327,9 +356,31 @@ func TestServerWithBcryptHash(t *testing.T) {
 
 func TestServerWithTLS(t *testing.T) {
 	resetHelper()
-	var passphrase string
 	var err error
-	certFile, keyFile, passphrase, err = createTLSFiles()
+	certFile, keyFile, err = createTLSFiles("")
+	if err != nil {
+		t.Errorf("Unexpected TLS files creation error: %s", err)
+		return
+	}
+	defer func() {
+		os.Remove(*certFile)
+		os.Remove(*keyFile)
+	}()
+	configure()
+	srv, err := server()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if srv.TLSConfig == nil {
+		t.Errorf("Unexpected empty TLS config.")
+	}
+}
+
+func TestServerWithTLSWithPassphrase(t *testing.T) {
+	resetHelper()
+	passphrase := "test"
+	var err error
+	certFile, keyFile, err = createTLSFiles(passphrase)
 	if err != nil {
 		t.Errorf("Unexpected TLS files creation error: %s", err)
 		return
