@@ -28,7 +28,8 @@
 ## Background
 
 [Amazon SES](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/Welcome.html)
-and [Amazon Pinpoint](https://docs.aws.amazon.com/pinpoint/latest/developerguide/welcome.html)
+and
+[Amazon Pinpoint](https://docs.aws.amazon.com/pinpoint/latest/developerguide/welcome.html)
 both provide an API and an SMTP interface to send emails:
 
 - [SES Email API](https://docs.aws.amazon.com/ses/latest/DeveloperGuide/send-email-api.html)
@@ -43,9 +44,8 @@ but it requires providing a set of SMTP credentials:
 - [Pinpoint SMTP Credentials](https://docs.aws.amazon.com/pinpoint/latest/userguide/channels-email-send-smtp.html#channels-email-send-smtp-credentials)
 
 For security reasons, using
-[IAM roles](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
-is preferable, but only possible with the Email API and not the SMTP
-interface.
+[IAM roles](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) is
+preferable, but only possible with the Email API and not the SMTP interface.
 
 This is where this project comes into play, as it provides an SMTP interface
 that relays emails via SES or Pinpoint API using IAM roles.
@@ -116,8 +116,8 @@ Usage of aws-smtp-relay:
 
 #### User
 
-The supported user-based SMTP authentication mechanisms and their
-required configuration settings (see also
+The supported user-based SMTP authentication mechanisms and their required
+configuration settings (see also
 [RFC 4954](https://tools.ietf.org/html/rfc4954#section-9)):
 
 | Mechanism  | [TLS](#tls) | User | Hash | Pass |
@@ -200,9 +200,9 @@ openssl req -new -x509 -config tls/openssl.conf -days 24855 \
 > Encrypted key files are only supported if they contain a `DEK-Info` header,
 > stating the encryption method used.  
 > The `openssl req` command does not create this header if encryption is
-> enabled, which is why we pipe the unencrypted key output to the
-> `openssl rsa` command, which outputs an encrypted key file with the required
-> `DEK-Info` header.
+> enabled, which is why we pipe the unencrypted key output to the `openssl rsa`
+> command, which outputs an encrypted key file with the required `DEK-Info`
+> header.
 
 Provide the key file passphrase as `TLS_KEY_PASS` environment variable and the
 cert and key file as command-line arguments:
@@ -214,8 +214,8 @@ TLS_KEY_PASS="$PASSPHRASE" aws-smtp-relay -c tls/default.crt -k tls/default.key
 **Please note**:
 
 > It is recommended to require TLS via `STARTTLS` extension (`-s` option flag)
-> or to configure the server to listen for incoming TLS connections only
-> (`-t` option flag).
+> or to configure the server to listen for incoming TLS connections only (`-t`
+> option flag).
 
 ### Region
 
@@ -237,7 +237,8 @@ security credentials for the IAM role are automatically retrieved:
 
 ### Logging
 
-Requests are logged in `JSON` format to `stdout` with an empty `Error` property:
+Requests are logged in `JSON` format to `stdout` with the `Error` property set
+to `null`:
 
 ```json
 {
@@ -245,11 +246,12 @@ Requests are logged in `JSON` format to `stdout` with an empty `Error` property:
   "IP": "172.17.0.1",
   "From": "alice@example.org",
   "To": ["bob@example.org"],
-  "Error": ""
+  "Error": null
 }
 ```
 
-Errors are logged in the same format to `stderr`, with the `Error` property set:
+Errors are logged in the same format to `stderr`, with the `Error` property set
+to a `string` value:
 
 ```json
 {
