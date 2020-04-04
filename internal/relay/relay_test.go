@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -81,7 +82,7 @@ func TestLog(t *testing.T) {
 		t.Errorf("Unexpected 'To' log: %s. Expected: %s", toVals, expectedToVals)
 	}
 	if entry.Error != nil {
-		t.Errorf("Unexpected 'Error' log: %v. Expected: %v", entry.Error, nil)
+		t.Errorf("Unexpected 'Error' log: %s. Expected: %v", *entry.Error, nil)
 	}
 	if len(err) != 0 {
 		t.Errorf("Unexpected stderr: %s", err)
@@ -110,7 +111,7 @@ func TestLogWithOriginIPv6(t *testing.T) {
 		)
 	}
 	if entry.Error != nil {
-		t.Errorf("Unexpected 'Error' log: %v. Expected: %v", entry.Error, nil)
+		t.Errorf("Unexpected 'Error' log: %s. Expected: %v", *entry.Error, nil)
 	}
 	if len(err) != 0 {
 		t.Errorf("Unexpected stderr: %s", err)
@@ -136,5 +137,126 @@ func TestLogWithError(t *testing.T) {
 	}
 	if len(err) != 0 {
 		t.Errorf("Unexpected stderr: %s", err)
+	}
+}
+
+func TestFilterAddresses(t *testing.T) {
+	from := "alice@example.org"
+	to := []string{
+		"bob@example.org",
+		"charlie@example.org",
+	}
+	allowedRecipients, deniedRecipients, err := FilterAddresses(
+		from,
+		to,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Errorf("Unexpected error: %s. Expected: %v", err, nil)
+	}
+	allowedRecipientsValues := pointersToValues(allowedRecipients)
+	if len(allowedRecipients) != 2 || allowedRecipientsValues[0] != to[0] ||
+		allowedRecipientsValues[1] != to[1] {
+		t.Errorf(
+			"Unexpected allowed recipients: %s. Expected: %s",
+			allowedRecipientsValues,
+			to,
+		)
+	}
+	if len(deniedRecipients) != 0 {
+		t.Errorf(
+			"Unexpected denied recipients: %s. Expected: %s",
+			pointersToValues(deniedRecipients),
+			[]string{},
+		)
+	}
+}
+
+func TestFilterAddressesWithDeniedSender(t *testing.T) {
+	from := "alice@example.org"
+	to := []string{
+		"bob@example.org",
+		"charlie@example.org",
+	}
+	allowFromRegExp, _ := regexp.Compile("^admin@example\\.org$")
+	denyToRegExp, _ := regexp.Compile("^david@example.org$")
+	expectedError := errors.New(
+		"Denied sender: sender does not match the allowed emails regexp",
+	)
+	allowedRecipients, deniedRecipients, err := FilterAddresses(
+		from,
+		to,
+		allowFromRegExp,
+		denyToRegExp,
+	)
+	if err == nil {
+		t.Errorf("Unexpected error: %v. Expected: %s", nil, expectedError)
+	} else if err.Error() != expectedError.Error() {
+		t.Errorf(
+			"Unexpected error: `%s`. Expected: `%s`",
+			err.Error(),
+			expectedError.Error(),
+		)
+	}
+	if len(allowedRecipients) != 0 {
+		t.Errorf(
+			"Unexpected allowed recipients: %s. Expected: %s",
+			pointersToValues(allowedRecipients),
+			[]string{},
+		)
+	}
+	deniedRecipientsValues := pointersToValues(deniedRecipients)
+	if len(deniedRecipients) != 2 || deniedRecipientsValues[0] != to[0] ||
+		deniedRecipientsValues[1] != to[1] {
+		t.Errorf(
+			"Unexpected denied recipients: %s. Expected: %s",
+			deniedRecipientsValues,
+			to,
+		)
+	}
+}
+
+func TestFilterAddressesWithDeniedRecipients(t *testing.T) {
+	from := "alice@example.org"
+	to := []string{
+		"bob@example.org",
+		"charlie@example.org",
+	}
+	allowFromRegExp, _ := regexp.Compile("^[^@]+@example\\.org$")
+	denyToRegExp, _ := regexp.Compile("^bob@example\\.org$")
+	expectedError := errors.New(
+		"Denied recipients: recipients match the denied emails regexp",
+	)
+	allowedRecipients, deniedRecipients, err := FilterAddresses(
+		from,
+		to,
+		allowFromRegExp,
+		denyToRegExp,
+	)
+	if err == nil {
+		t.Errorf("Unexpected error: %v. Expected: %s", nil, expectedError)
+	} else if err.Error() != expectedError.Error() {
+		t.Errorf(
+			"Unexpected error: `%s`. Expected: `%s`",
+			err.Error(),
+			expectedError.Error(),
+		)
+	}
+	allowedRecipientsValues := pointersToValues(allowedRecipients)
+	if len(allowedRecipients) != 1 || allowedRecipientsValues[0] != to[1] {
+		t.Errorf(
+			"Unexpected allowed recipients: %s. Expected: %s",
+			allowedRecipientsValues,
+			[]string{"charlie@example.org"},
+		)
+	}
+	deniedRecipientsValues := pointersToValues(deniedRecipients)
+	if len(deniedRecipients) != 1 || deniedRecipientsValues[0] != to[0] {
+		t.Errorf(
+			"Unexpected denied recipients: %s. Expected: %s",
+			deniedRecipientsValues,
+			[]string{"bob@example.org"},
+		)
 	}
 }

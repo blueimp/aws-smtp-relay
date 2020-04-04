@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/blueimp/aws-smtp-relay/internal/auth"
@@ -15,17 +16,19 @@ import (
 )
 
 var (
-	addr     = flag.String("a", ":1025", "TCP listen address")
-	name     = flag.String("n", "AWS SMTP Relay", "SMTP service name")
-	host     = flag.String("h", "", "Server hostname")
-	certFile = flag.String("c", "", "TLS cert file")
-	keyFile  = flag.String("k", "", "TLS key file")
-	startTLS = flag.Bool("s", false, "Require TLS via STARTTLS extension")
-	onlyTLS  = flag.Bool("t", false, "Listen for incoming TLS connections only")
-	relayAPI = flag.String("r", "ses", "Relay API to use (ses|pinpoint)")
-	setName  = flag.String("e", "", "Amazon SES Configuration Set Name")
-	ips      = flag.String("i", "", "Allowed client IPs (comma-separated)")
-	user     = flag.String("u", "", "Authentication username")
+	addr      = flag.String("a", ":1025", "TCP listen address")
+	name      = flag.String("n", "AWS SMTP Relay", "SMTP service name")
+	host      = flag.String("h", "", "Server hostname")
+	certFile  = flag.String("c", "", "TLS cert file")
+	keyFile   = flag.String("k", "", "TLS key file")
+	startTLS  = flag.Bool("s", false, "Require TLS via STARTTLS extension")
+	onlyTLS   = flag.Bool("t", false, "Listen for incoming TLS connections only")
+	relayAPI  = flag.String("r", "ses", "Relay API to use (ses|pinpoint)")
+	setName   = flag.String("e", "", "Amazon SES Configuration Set Name")
+	ips       = flag.String("i", "", "Allowed client IPs (comma-separated)")
+	user      = flag.String("u", "", "Authentication username")
+	allowFrom = flag.String("l", "", "Allowed sender emails regular expression")
+	denyTo    = flag.String("d", "", "Denied recipient emails regular expression")
 )
 
 var ipMap map[string]bool
@@ -61,11 +64,26 @@ func server() (srv *smtpd.Server, err error) {
 }
 
 func configure() error {
+	var allowFromRegExp *regexp.Regexp
+	var denyToRegExp *regexp.Regexp
+	var err error
+	if *allowFrom != "" {
+		allowFromRegExp, err = regexp.Compile(*allowFrom)
+		if err != nil {
+			return errors.New("Allowed sender emails: " + err.Error())
+		}
+	}
+	if *denyTo != "" {
+		denyToRegExp, err = regexp.Compile(*denyTo)
+		if err != nil {
+			return errors.New("Denied recipient emails: " + err.Error())
+		}
+	}
 	switch *relayAPI {
 	case "pinpoint":
-		relayClient = pinpointrelay.New(setName)
+		relayClient = pinpointrelay.New(setName, allowFromRegExp, denyToRegExp)
 	case "ses":
-		relayClient = sesrelay.New(setName)
+		relayClient = sesrelay.New(setName, allowFromRegExp, denyToRegExp)
 	default:
 		return errors.New("Invalid relay API: " + *relayAPI)
 	}

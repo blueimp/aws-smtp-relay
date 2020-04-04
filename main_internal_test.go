@@ -140,6 +140,8 @@ func resetHelper() {
 	*setName = ""
 	*ips = ""
 	*user = ""
+	*allowFrom = ""
+	*denyTo = ""
 	ipMap = nil
 	bcryptHash = nil
 	password = nil
@@ -234,6 +236,42 @@ func TestConfigureWithIPs(t *testing.T) {
 	}
 	if len(ipMap) != 2 {
 		t.Errorf("Unexpected IP map size: %d", len(ipMap))
+	}
+}
+
+func TestConfigureWithAllowFrom(t *testing.T) {
+	resetHelper()
+	*allowFrom = "^^admin@example\\.org$"
+	err := configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+func TestConfigureWithInvalidAllowFrom(t *testing.T) {
+	resetHelper()
+	*allowFrom = "("
+	err := configure()
+	if err == nil {
+		t.Error("Unexpected nil error")
+	}
+}
+
+func TestConfigureWithDenyTo(t *testing.T) {
+	resetHelper()
+	*denyTo = "^^bob@example\\.org$"
+	err := configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+func TestConfigureWithInvalidDenyTo(t *testing.T) {
+	resetHelper()
+	*denyTo = "("
+	err := configure()
+	if err == nil {
+		t.Error("Unexpected nil error")
 	}
 }
 
