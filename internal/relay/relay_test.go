@@ -10,12 +10,6 @@ import (
 	"time"
 )
 
-var emails = []string{
-	"alice@example.org",
-	"bob@example.org",
-	"charlie@example.org",
-}
-
 func pointersToValues(pointers []*string) []string {
 	values := []string{}
 	for k := range pointers {
@@ -52,6 +46,11 @@ func logHelper(addr net.Addr, from *string, to []*string, err error) (
 
 func TestLog(t *testing.T) {
 	origin := net.TCPAddr{IP: []byte{127, 0, 0, 1}}
+	emails := []string{
+		"alice@example.org",
+		"bob@example.org",
+		"charlie@example.org",
+	}
 	from := &emails[0]
 	to := []*string{&emails[1], &emails[2]}
 	timeBefore := time.Now()
@@ -93,6 +92,11 @@ func TestLogWithOriginIPv6(t *testing.T) {
 	origin := net.TCPAddr{IP: []byte{
 		0x20, 0x01, 0x48, 0x60, 0, 0, 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0x00, 0x68,
 	}}
+	emails := []string{
+		"alice@example.org",
+		"bob@example.org",
+		"charlie@example.org",
+	}
 	from := &emails[0]
 	to := []*string{&emails[1], &emails[2]}
 	out, err := logHelper(&origin, from, to, nil)
@@ -115,6 +119,11 @@ func TestLogWithOriginIPv6(t *testing.T) {
 
 func TestLogWithError(t *testing.T) {
 	origin := net.TCPAddr{IP: []byte{127, 0, 0, 1}}
+	emails := []string{
+		"alice@example.org",
+		"bob@example.org",
+		"charlie@example.org",
+	}
 	from := &emails[0]
 	to := []*string{&emails[1], &emails[2]}
 	out, err := logHelper(&origin, from, to, errors.New("ERROR"))
