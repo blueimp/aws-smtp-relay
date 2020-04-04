@@ -6,7 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/aws/aws-sdk-go/service/ses/sesiface"
-	"github.com/blueimp/aws-smtp-relay/internal/request"
+	"github.com/blueimp/aws-smtp-relay/internal/relay"
 )
 
 // Client implements the Relay interface.
@@ -32,7 +32,7 @@ func (c Client) Send(
 		Destinations:         destinations,
 		RawMessage:           &ses.RawMessage{Data: data},
 	})
-	request.Log(origin, from, to, err)
+	relay.Log(origin, from, to, err)
 }
 
 // New creates a new client with a session.
