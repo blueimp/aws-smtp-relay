@@ -38,7 +38,7 @@ func (c Client) Send(
 			},
 		},
 	})
-	relay.Log(origin, from, to, err)
+	relay.Log(origin, &from, destinations, err)
 }
 
 // New creates a new client with a session.
