@@ -13,6 +13,9 @@
     - [User](#user)
     - [IP](#ip)
   - [TLS](#tls)
+  - [Filtering](#filtering)
+    - [Senders](#senders)
+    - [Recipients](#recipients)
   - [Region](#region)
   - [Credentials](#credentials)
   - [Logging](#logging)
@@ -91,25 +94,29 @@ aws-smtp-relay --help
 ```
 Usage of aws-smtp-relay:
   -a string
-    	TCP listen address (default ":1025")
+        TCP listen address (default ":1025")
   -c string
-    	TLS cert file
+        TLS cert file
+  -d string
+        Denied recipient emails regular expression
   -e string
-    	Amazon SES Configuration Set Name
+        Amazon SES Configuration Set Name
   -h string
-    	Server hostname
+        Server hostname
   -i string
-    	Allowed client IPs (comma-separated)
+        Allowed client IPs (comma-separated)
   -k string
-    	TLS key file
+        TLS key file
+  -l string
+        Allowed sender emails regular expression
   -n string
-    	SMTP service name (default "AWS SMTP Relay")
+        SMTP service name (default "AWS SMTP Relay")
   -r string
-    	Relay API to use (ses|pinpoint) (default "ses")
-  -s	Require TLS via STARTTLS extension
-  -t	Listen for incoming TLS connections only
+        Relay API to use (ses|pinpoint) (default "ses")
+  -s    Require TLS via STARTTLS extension
+  -t    Listen for incoming TLS connections only
   -u string
-    	Authentication username
+        Authentication username
 ```
 
 ### Authentication
@@ -216,6 +223,32 @@ TLS_KEY_PASS="$PASSPHRASE" aws-smtp-relay -c tls/default.crt -k tls/default.key
 > It is recommended to require TLS via `STARTTLS` extension (`-s` option flag)
 > or to configure the server to listen for incoming TLS connections only (`-t`
 > option flag).
+
+### Filtering
+
+#### Senders
+
+To limit the allowed sender email addresses, provide an allow list as
+[regular expression](https://golang.org/pkg/regexp/syntax/) via `-l regexp`
+option:
+
+```sh
+aws-smtp-relay -l '@example\.org$'
+```
+
+By default, all sender email addresses are allowed.
+
+#### Recipients
+
+To deny certain recipient email addresses, provide a deny list as
+[regular expression](https://golang.org/pkg/regexp/syntax/) via `-d regexp`
+option:
+
+```sh
+aws-smtp-relay -d 'admin@example\.org$'
+```
+
+By default, all recipient email addresses are allowed.
 
 ### Region
 

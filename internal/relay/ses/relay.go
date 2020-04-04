@@ -2,6 +2,7 @@ package relay
 
 import (
 	"net"
+	"regexp"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ses"
@@ -11,8 +12,10 @@ import (
 
 // Client implements the Relay interface.
 type Client struct {
-	sesAPI  sesiface.SESAPI
-	setName *string
+	sesAPI          sesiface.SESAPI
+	setName         *string
+	allowFromRegExp *regexp.Regexp
+	denyToRegExp    *regexp.Regexp
 }
 
 // Send uses the client SESAPI to send email data
@@ -22,23 +25,36 @@ func (c Client) Send(
 	to []string,
 	data []byte,
 ) {
-	destinations := []*string{}
-	for k := range to {
-		destinations = append(destinations, &(to)[k])
+	allowedRecipients, deniedRecipients, err := relay.FilterAddresses(
+		from,
+		to,
+		c.allowFromRegExp,
+		c.denyToRegExp,
+	)
+	if err != nil {
+		relay.Log(origin, &from, deniedRecipients, err)
 	}
-	_, err := c.sesAPI.SendRawEmail(&ses.SendRawEmailInput{
-		ConfigurationSetName: c.setName,
-		Source:               &from,
-		Destinations:         destinations,
-		RawMessage:           &ses.RawMessage{Data: data},
-	})
-	relay.Log(origin, &from, destinations, err)
+	if len(allowedRecipients) > 0 {
+		_, err := c.sesAPI.SendRawEmail(&ses.SendRawEmailInput{
+			ConfigurationSetName: c.setName,
+			Source:               &from,
+			Destinations:         allowedRecipients,
+			RawMessage:           &ses.RawMessage{Data: data},
+		})
+		relay.Log(origin, &from, allowedRecipients, err)
+	}
 }
 
 // New creates a new client with a session.
-func New(configurationSetName *string) Client {
+func New(
+	configurationSetName *string,
+	allowFromRegExp *regexp.Regexp,
+	denyToRegExp *regexp.Regexp,
+) Client {
 	return Client{
-		sesAPI:  ses.New(session.Must(session.NewSession())),
-		setName: configurationSetName,
+		sesAPI:          ses.New(session.Must(session.NewSession())),
+		setName:         configurationSetName,
+		allowFromRegExp: allowFromRegExp,
+		denyToRegExp:    denyToRegExp,
 	}
 }
