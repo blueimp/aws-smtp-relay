@@ -203,9 +203,6 @@ func TestConfigureWithIPs(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	if *ips != "127.0.0.1,2001:4860:0:2001::68" {
-		t.Errorf("Unexpected IPs string: %s", *ips)
-	}
 	if len(ipMap) != 2 {
 		t.Errorf("Unexpected IP map size: %d", len(ipMap))
 	}
