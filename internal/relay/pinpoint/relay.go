@@ -6,7 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/pinpointemail"
 	"github.com/aws/aws-sdk-go/service/pinpointemail/pinpointemailiface"
-	"github.com/blueimp/aws-smtp-relay/internal/request"
+	"github.com/blueimp/aws-smtp-relay/internal/relay"
 )
 
 // Client implements the Relay interface.
@@ -38,7 +38,7 @@ func (c Client) Send(
 			},
 		},
 	})
-	request.Log(origin, from, to, err)
+	relay.Log(origin, from, to, err)
 }
 
 // New creates a new client with a session.
