@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"errors"
 	"net"
 	"regexp"
 
@@ -24,7 +25,7 @@ func (c Client) Send(
 	from string,
 	to []string,
 	data []byte,
-) {
+) error {
 	allowedRecipients, deniedRecipients, err := relay.FilterAddresses(
 		from,
 		to,
@@ -42,6 +43,9 @@ func (c Client) Send(
 			RawMessage:           &ses.RawMessage{Data: data},
 		})
 		relay.Log(origin, &from, allowedRecipients, err)
+		return err
+	} else {
+		return errors.New("No allowed recipients.")
 	}
 }
 
