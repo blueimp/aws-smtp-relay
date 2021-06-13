@@ -19,7 +19,7 @@ type Client interface {
 		from string,
 		to []string,
 		data []byte,
-	)
+	) error
 }
 
 type logEntry struct {

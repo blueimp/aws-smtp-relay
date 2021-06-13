@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"errors"
 	"io/ioutil"
 	"net"
 	"os"
@@ -12,7 +13,10 @@ import (
 	"github.com/blueimp/aws-smtp-relay/internal/relay"
 )
 
-var testData = struct{ input *ses.SendRawEmailInput }{}
+var testData = struct {
+	input *ses.SendRawEmailInput
+	err   error
+}{}
 
 type mockSESAPI struct {
 	sesiface.SESAPI
@@ -23,7 +27,7 @@ func (m *mockSESAPI) SendRawEmail(input *ses.SendRawEmailInput) (
 	error,
 ) {
 	testData.input = input
-	return nil, nil
+	return nil, testData.err
 }
 
 func sendHelper(
@@ -34,13 +38,15 @@ func sendHelper(
 	configurationSetName *string,
 	allowFromRegExp *regexp.Regexp,
 	denyToRegExp *regexp.Regexp,
-) (email *ses.SendRawEmailInput, out []byte, err []byte) {
+	apiErr error,
+) (email *ses.SendRawEmailInput, sendErr error, out []byte, err []byte) {
 	outReader, outWriter, _ := os.Pipe()
 	errReader, errWriter, _ := os.Pipe()
 	originalOut := os.Stdout
 	originalErr := os.Stderr
 	defer func() {
 		testData.input = nil
+		testData.err = nil
 		os.Stdout = originalOut
 		os.Stderr = originalErr
 	}()
@@ -53,13 +59,14 @@ func sendHelper(
 			allowFromRegExp: allowFromRegExp,
 			denyToRegExp:    denyToRegExp,
 		}
-		c.Send(origin, from, to, data)
+		testData.err = apiErr
+		sendErr = c.Send(origin, from, to, data)
 		outWriter.Close()
 		errWriter.Close()
 	}()
 	stdout, _ := ioutil.ReadAll(outReader)
 	stderr, _ := ioutil.ReadAll(errReader)
-	return testData.input, stdout, stderr
+	return testData.input, sendErr, stdout, stderr
 }
 
 func TestSend(t *testing.T) {
@@ -68,7 +75,7 @@ func TestSend(t *testing.T) {
 	to := []string{"bob@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	input, out, err := sendHelper(&origin, from, to, data, &setName, nil, nil)
+	input, _, out, err := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
 	if *input.Source != from {
 		t.Errorf(
 			"Unexpected source: %s. Expected: %s",
@@ -108,7 +115,7 @@ func TestSendWithMultipleRecipients(t *testing.T) {
 	to := []string{"bob@example.org", "charlie@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	input, out, err := sendHelper(&origin, from, to, data, &setName, nil, nil)
+	input, _, out, err := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
 	if len(input.Destinations) != 2 {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -138,13 +145,16 @@ func TestSendWithDeniedSender(t *testing.T) {
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
 	regexp, _ := regexp.Compile("^admin@example\\.org$")
-	input, out, err := sendHelper(&origin, from, to, data, &setName, regexp, nil)
+	input, sendErr, out, err := sendHelper(&origin, from, to, data, &setName, regexp, nil, nil)
 	if input != nil {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
 			len(input.Destinations),
 			0,
 		)
+	}
+	if sendErr == nil {
+		t.Error("Send did not return an error")
 	}
 	if len(out) == 0 {
 		t.Error("Unexpected empty stdout")
@@ -161,7 +171,7 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
 	regexp, _ := regexp.Compile("^bob@example\\.org$")
-	input, out, err := sendHelper(&origin, from, to, data, &setName, nil, regexp)
+	input, _, out, err := sendHelper(&origin, from, to, data, &setName, nil, regexp, nil)
 	if len(input.Destinations) != 1 {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -175,6 +185,50 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 			*input.Destinations[0],
 			to[1],
 		)
+	}
+	if len(out) == 0 {
+		t.Error("Unexpected empty stdout")
+	}
+	if len(err) != 0 {
+		t.Errorf("Unexpected stderr: %s", err)
+	}
+}
+
+func TestSendWithApiError(t *testing.T) {
+	origin := net.TCPAddr{IP: []byte{127, 0, 0, 1}}
+	from := "alice@example.org"
+	to := []string{"bob@example.org"}
+	data := []byte{'T', 'E', 'S', 'T'}
+	setName := ""
+	apiErr := errors.New("API failure")
+	input, sendErr, out, err := sendHelper(&origin, from, to, data, &setName, nil, nil, apiErr)
+	if *input.Source != from {
+		t.Errorf(
+			"Unexpected source: %s. Expected: %s",
+			*input.Source,
+			from,
+		)
+	}
+	if len(input.Destinations) != 1 {
+		t.Errorf(
+			"Unexpected number of destinations: %d. Expected: %d",
+			len(input.Destinations),
+			1,
+		)
+	}
+	if *input.Destinations[0] != to[0] {
+		t.Errorf(
+			"Unexpected destination: %s. Expected: %s",
+			*input.Destinations[0],
+			to[0],
+		)
+	}
+	inputData := string(input.RawMessage.Data)
+	if inputData != "TEST" {
+		t.Errorf("Unexpected data: %s. Expected: %s", inputData, "TEST")
+	}
+	if sendErr != apiErr {
+		t.Error("Send did not report API error")
 	}
 	if len(out) == 0 {
 		t.Error("Unexpected empty stdout")
