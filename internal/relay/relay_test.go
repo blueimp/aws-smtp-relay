@@ -181,9 +181,7 @@ func TestFilterAddressesWithDeniedSender(t *testing.T) {
 	}
 	allowFromRegExp, _ := regexp.Compile("^admin@example\\.org$")
 	denyToRegExp, _ := regexp.Compile("^david@example.org$")
-	expectedError := errors.New(
-		"Denied sender: sender does not match the allowed emails regexp",
-	)
+	expectedError := ErrDeniedSender
 	allowedRecipients, deniedRecipients, err := FilterAddresses(
 		from,
 		to,
@@ -225,9 +223,7 @@ func TestFilterAddressesWithDeniedRecipients(t *testing.T) {
 	}
 	allowFromRegExp, _ := regexp.Compile("^[^@]+@example\\.org$")
 	denyToRegExp, _ := regexp.Compile("^bob@example\\.org$")
-	expectedError := errors.New(
-		"Denied recipients: recipients match the denied emails regexp",
-	)
+	expectedError := ErrDeniedRecipients
 	allowedRecipients, deniedRecipients, err := FilterAddresses(
 		from,
 		to,

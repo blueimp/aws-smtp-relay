@@ -158,8 +158,8 @@ func TestSendWithDeniedSender(t *testing.T) {
 			0,
 		)
 	}
-	if sendErr == nil {
-		t.Error("Send did not return an error")
+	if sendErr != relay.ErrDeniedSender {
+		t.Errorf("Unexpected error: %s. Expected: %s", sendErr, relay.ErrDeniedSender)
 	}
 	if len(out) == 0 {
 		t.Error("Unexpected empty stdout")
@@ -176,7 +176,7 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
 	regexp, _ := regexp.Compile("^bob@example\\.org$")
-	input, _, out, err := sendHelper(&origin, from, to, data, &setName, nil, regexp, nil)
+	input, sendErr, out, err := sendHelper(&origin, from, to, data, &setName, nil, regexp, nil)
 	if len(input.Destination.ToAddresses) != 1 {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -190,6 +190,9 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 			*input.Destination.ToAddresses[0],
 			to[1],
 		)
+	}
+	if sendErr != relay.ErrDeniedRecipients {
+		t.Errorf("Unexpected error: %s. Expected: %s", sendErr, relay.ErrDeniedRecipients)
 	}
 	if len(out) == 0 {
 		t.Error("Unexpected empty stdout")
@@ -233,7 +236,7 @@ func TestSendWithApiError(t *testing.T) {
 		t.Errorf("Unexpected data: %s. Expected: %s", inputData, "TEST")
 	}
 	if sendErr != apiErr {
-		t.Error("Send did not report API error")
+		t.Errorf("Send did not report API error: %s. Expected: %s", sendErr, apiErr)
 	}
 	if len(out) == 0 {
 		t.Error("Unexpected empty stdout")

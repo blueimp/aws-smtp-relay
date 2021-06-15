@@ -1,7 +1,6 @@
 package relay
 
 import (
-	"errors"
 	"net"
 	"regexp"
 
@@ -49,10 +48,11 @@ func (c Client) Send(
 			},
 		})
 		relay.Log(origin, &from, allowedRecipients, err)
-		return err
-	} else {
-		return errors.New("No allowed recipients.")
+		if err != nil {
+			return err
+		}
 	}
+	return err
 }
 
 // New creates a new client with a session.

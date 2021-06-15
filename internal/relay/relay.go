@@ -12,6 +12,16 @@ import (
 	"time"
 )
 
+var (
+	ErrDeniedSender = errors.New(
+		"denied sender: sender does not match the allowed emails regexp",
+	)
+
+	ErrDeniedRecipients = errors.New(
+		"denied recipients: recipients match the denied emails regexp",
+	)
+)
+
 // Client provides an interface to send emails.
 type Client interface {
 	Send(
@@ -61,9 +71,7 @@ func FilterAddresses(
 	allowedRecipients = []*string{}
 	deniedRecipients = []*string{}
 	if allowFromRegExp != nil && !allowFromRegExp.MatchString(from) {
-		err = errors.New(
-			"Denied sender: sender does not match the allowed emails regexp",
-		)
+		err = ErrDeniedSender
 	}
 	for k := range to {
 		recipient := &(to)[k]
@@ -76,9 +84,7 @@ func FilterAddresses(
 		}
 	}
 	if err == nil && len(deniedRecipients) > 0 {
-		err = errors.New(
-			"Denied recipients: recipients match the denied emails regexp",
-		)
+		err = ErrDeniedRecipients
 	}
 	return
 }
