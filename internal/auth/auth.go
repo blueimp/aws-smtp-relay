@@ -43,7 +43,7 @@ func (a Authentication) Handler(
 	}
 	if a.ips != nil {
 		ip := remoteAddr.(*net.TCPAddr).IP.String()
-		if a.ips[ip] != true {
+		if !a.ips[ip] {
 			return false, errors.New("Invalid client IP: " + ip)
 		}
 	}
