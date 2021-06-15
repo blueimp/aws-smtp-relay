@@ -39,7 +39,7 @@ func sendHelper(
 	allowFromRegExp *regexp.Regexp,
 	denyToRegExp *regexp.Regexp,
 	apiErr error,
-) (email *ses.SendRawEmailInput, sendErr error, out []byte, err []byte) {
+) (email *ses.SendRawEmailInput, out []byte, err []byte, sendErr error) {
 	outReader, outWriter, _ := os.Pipe()
 	errReader, errWriter, _ := os.Pipe()
 	originalOut := os.Stdout
@@ -66,7 +66,7 @@ func sendHelper(
 	}()
 	stdout, _ := ioutil.ReadAll(outReader)
 	stderr, _ := ioutil.ReadAll(errReader)
-	return testData.input, sendErr, stdout, stderr
+	return testData.input, stdout, stderr, sendErr
 }
 
 func TestSend(t *testing.T) {
@@ -75,7 +75,7 @@ func TestSend(t *testing.T) {
 	to := []string{"bob@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	input, _, out, err := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
+	input, out, err, _ := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
 	if *input.Source != from {
 		t.Errorf(
 			"Unexpected source: %s. Expected: %s",
@@ -115,7 +115,7 @@ func TestSendWithMultipleRecipients(t *testing.T) {
 	to := []string{"bob@example.org", "charlie@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	input, _, out, err := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
+	input, out, err, _ := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
 	if len(input.Destinations) != 2 {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -145,7 +145,7 @@ func TestSendWithDeniedSender(t *testing.T) {
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
 	regexp, _ := regexp.Compile("^admin@example\\.org$")
-	input, sendErr, out, err := sendHelper(&origin, from, to, data, &setName, regexp, nil, nil)
+	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, regexp, nil, nil)
 	if input != nil {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -171,7 +171,7 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
 	regexp, _ := regexp.Compile("^bob@example\\.org$")
-	input, sendErr, out, err := sendHelper(&origin, from, to, data, &setName, nil, regexp, nil)
+	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, nil, regexp, nil)
 	if len(input.Destinations) != 1 {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -204,7 +204,7 @@ func TestSendWithApiError(t *testing.T) {
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
 	apiErr := errors.New("API failure")
-	input, sendErr, out, err := sendHelper(&origin, from, to, data, &setName, nil, nil, apiErr)
+	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, nil, nil, apiErr)
 	if *input.Source != from {
 		t.Errorf(
 			"Unexpected source: %s. Expected: %s",
