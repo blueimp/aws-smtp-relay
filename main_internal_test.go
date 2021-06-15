@@ -345,6 +345,9 @@ func TestServerWithIPs(t *testing.T) {
 	resetHelper()
 	*ips = "127.0.0.1,2001:4860:0:2001::68"
 	err := configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 	srv, err := server()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
@@ -371,6 +374,9 @@ func TestServerWithBcryptHash(t *testing.T) {
 	*user = "username"
 	os.Setenv("BCRYPT_HASH", sampleHash)
 	err := configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 	srv, err := server()
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
