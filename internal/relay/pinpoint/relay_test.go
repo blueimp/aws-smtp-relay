@@ -149,7 +149,7 @@ func TestSendWithDeniedSender(t *testing.T) {
 	to := []string{"bob@example.org", "charlie@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	regexp, _ := regexp.Compile("^admin@example\\.org$")
+	regexp, _ := regexp.Compile(`^admin@example\.org$`)
 	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, regexp, nil, nil)
 	if input != nil {
 		t.Errorf(
@@ -175,7 +175,7 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 	to := []string{"bob@example.org", "charlie@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	regexp, _ := regexp.Compile("^bob@example\\.org$")
+	regexp, _ := regexp.Compile(`^bob@example\.org$`)
 	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, nil, regexp, nil)
 	if len(input.Destination.ToAddresses) != 1 {
 		t.Errorf(
@@ -248,8 +248,8 @@ func TestSendWithApiError(t *testing.T) {
 
 func TestNew(t *testing.T) {
 	setName := ""
-	allowFromRegExp, _ := regexp.Compile("^admin@example\\.org$")
-	denyToRegExp, _ := regexp.Compile("^bob@example\\.org$")
+	allowFromRegExp, _ := regexp.Compile(`^admin@example\.org$`)
+	denyToRegExp, _ := regexp.Compile(`^bob@example\.org$`)
 	client := New(&setName, allowFromRegExp, denyToRegExp)
 	_, ok := interface{}(client).(relay.Client)
 	if !ok {
