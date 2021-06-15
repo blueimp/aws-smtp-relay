@@ -2,7 +2,7 @@
 
 > SMTP server to relay emails via Amazon SES or Amazon Pinpoint using IAM roles.
 
-## Contents
+**Contents**
 
 - [Background](#background)
 - [Docker](#docker)
@@ -21,6 +21,7 @@
   - [Logging](#logging)
 - [Development](#development)
   - [Build](#build)
+  - [Lint](#lint)
   - [Test](#test)
   - [Install](#install)
   - [Uninstall](#uninstall)
@@ -318,6 +319,20 @@ directory, which creates the `aws-smtp-relay` binary:
 
 ```sh
 make
+```
+
+### Lint
+
+To lint the source code, first install [staticcheck](https://staticcheck.io/):
+
+```sh
+go install honnef.co/go/tools/cmd/staticcheck@latest
+```
+
+Then run the following command:
+
+```sh
+make lint
 ```
 
 ### Test

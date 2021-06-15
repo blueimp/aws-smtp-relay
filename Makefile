@@ -14,6 +14,11 @@ DEPS = internal/relay/relay.go main.go
 
 all: $(PROJECT)
 
+# Runs go vet and staticcheck for all components:
+lint:
+	go vet ./...
+	staticcheck ./...
+
 # Runs the unit tests for all components:
 test:
 	go test ./...
@@ -34,7 +39,8 @@ clean:
 
 # Defines phony targets (targets without a corresponding target file):
 .PHONY: \
-	all
+	all \
+	lint \
 	test \
 	install \
 	uninstall \
