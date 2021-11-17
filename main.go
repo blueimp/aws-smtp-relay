@@ -82,6 +82,22 @@ func configure() error {
 			return errors.New("Denied recipient emails: " + err.Error())
 		}
 	}
+	if *sourceArn != "" {
+		if *fromArn == "" {
+			fromArn = sourceArn
+		}
+		if *rPathArn == "" {
+			rPathArn = sourceArn
+		}
+	} else {
+		sourceArn = nil
+	}
+	if *fromArn == "" {
+		fromArn = nil
+	}
+	if *rPathArn == "" {
+		rPathArn = nil
+	}
 	switch *relayAPI {
 	case "pinpoint":
 		relayClient = pinpointrelay.New(setName, allowFromRegExp, denyToRegExp)
