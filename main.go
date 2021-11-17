@@ -29,6 +29,9 @@ var (
 	user      = flag.String("u", "", "Authentication username")
 	allowFrom = flag.String("l", "", "Allowed sender emails regular expression")
 	denyTo    = flag.String("d", "", "Denied recipient emails regular expression")
+	sourceArn = flag.String("sourcearn", "", "The ARN of the identity that is associated with the sending authorization policy that permits you to send for the email address specified in the Source parameter of SendRawEmail.")
+	fromArn   = flag.String("fromarn", "", "The ARN of the identity that is associated with the sending authorization policy that permits you to specify a particular 'From' address in the header of the raw email.")
+	rPathArn  = flag.String("returnpatharn", "", "The ARN of the identity that is associated with the sending authorization policy that permits you to use the email address specified in the ReturnPath parameter of SendRawEmail.")
 )
 
 var ipMap map[string]bool
@@ -83,7 +86,7 @@ func configure() error {
 	case "pinpoint":
 		relayClient = pinpointrelay.New(setName, allowFromRegExp, denyToRegExp)
 	case "ses":
-		relayClient = sesrelay.New(setName, allowFromRegExp, denyToRegExp)
+		relayClient = sesrelay.New(setName, allowFromRegExp, denyToRegExp, sourceArn, fromArn, rPathArn)
 	default:
 		return errors.New("Invalid relay API: " + *relayAPI)
 	}
