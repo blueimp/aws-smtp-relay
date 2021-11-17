@@ -16,6 +16,9 @@ type Client struct {
 	setName         *string
 	allowFromRegExp *regexp.Regexp
 	denyToRegExp    *regexp.Regexp
+	sourceArn       *string
+	fromArn         *string
+	returnPathArn   *string
 }
 
 // Send uses the client SESAPI to send email data
@@ -40,6 +43,9 @@ func (c Client) Send(
 			Source:               &from,
 			Destinations:         allowedRecipients,
 			RawMessage:           &ses.RawMessage{Data: data},
+			SourceArn:            c.sourceArn,
+			FromArn:              c.fromArn,
+			ReturnPathArn:        c.returnPathArn,
 		})
 		relay.Log(origin, &from, allowedRecipients, err)
 		if err != nil {
@@ -54,11 +60,17 @@ func New(
 	configurationSetName *string,
 	allowFromRegExp *regexp.Regexp,
 	denyToRegExp *regexp.Regexp,
+	sourceArn *string,
+	fromArn *string,
+	returnPathArn *string,
 ) Client {
 	return Client{
 		sesAPI:          ses.New(session.Must(session.NewSession())),
 		setName:         configurationSetName,
 		allowFromRegExp: allowFromRegExp,
 		denyToRegExp:    denyToRegExp,
+		sourceArn:       sourceArn,
+		fromArn:         fromArn,
+		returnPathArn:   returnPathArn,
 	}
 }

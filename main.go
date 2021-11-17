@@ -29,6 +29,9 @@ var (
 	user      = flag.String("u", "", "Authentication username")
 	allowFrom = flag.String("l", "", "Allowed sender emails regular expression")
 	denyTo    = flag.String("d", "", "Denied recipient emails regular expression")
+	sourceArn = flag.String("f", "", "The SourceARN (when using with cross accounts) ")
+	fromArn   = flag.String("o", "", "The FromARN (when using with cross accounts)")
+	rPathArn  = flag.String("p", "", "The ReturnPathARN (when using with cross accounts)")
 )
 
 var ipMap map[string]bool
@@ -79,11 +82,27 @@ func configure() error {
 			return errors.New("Denied recipient emails: " + err.Error())
 		}
 	}
+	if *sourceArn != "" {
+		if *fromArn == "" {
+			fromArn = sourceArn
+		}
+		if *rPathArn == "" {
+			rPathArn = sourceArn
+		}
+	} else {
+		sourceArn = nil
+	}
+	if *fromArn == "" {
+		fromArn = nil
+	}
+	if *rPathArn == "" {
+		rPathArn = nil
+	}
 	switch *relayAPI {
 	case "pinpoint":
 		relayClient = pinpointrelay.New(setName, allowFromRegExp, denyToRegExp)
 	case "ses":
-		relayClient = sesrelay.New(setName, allowFromRegExp, denyToRegExp)
+		relayClient = sesrelay.New(setName, allowFromRegExp, denyToRegExp, sourceArn, fromArn, rPathArn)
 	default:
 		return errors.New("Invalid relay API: " + *relayAPI)
 	}

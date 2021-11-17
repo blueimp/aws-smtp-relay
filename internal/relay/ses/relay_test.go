@@ -38,6 +38,9 @@ func sendHelper(
 	configurationSetName *string,
 	allowFromRegExp *regexp.Regexp,
 	denyToRegExp *regexp.Regexp,
+	sourceArn *string,
+	fromArn *string,
+	returnPathArn *string,
 	apiErr error,
 ) (email *ses.SendRawEmailInput, out []byte, err []byte, sendErr error) {
 	outReader, outWriter, _ := os.Pipe()
@@ -58,6 +61,9 @@ func sendHelper(
 			setName:         configurationSetName,
 			allowFromRegExp: allowFromRegExp,
 			denyToRegExp:    denyToRegExp,
+			sourceArn:       sourceArn,
+			fromArn:         fromArn,
+			returnPathArn:   returnPathArn,
 		}
 		testData.err = apiErr
 		sendErr = c.Send(origin, from, to, data)
@@ -75,7 +81,10 @@ func TestSend(t *testing.T) {
 	to := []string{"bob@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	input, out, err, _ := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
+	sourceArn := ""
+	fromArn := ""
+	returnPathArn := ""
+	input, out, err, _ := sendHelper(&origin, from, to, data, &setName, nil, nil, &sourceArn, &fromArn, &returnPathArn, nil)
 	if *input.Source != from {
 		t.Errorf(
 			"Unexpected source: %s. Expected: %s",
@@ -115,7 +124,10 @@ func TestSendWithMultipleRecipients(t *testing.T) {
 	to := []string{"bob@example.org", "charlie@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	input, out, err, _ := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
+	sourceArn := ""
+	fromArn := ""
+	returnPathArn := ""
+	input, out, err, _ := sendHelper(&origin, from, to, data, &setName, nil, nil, &sourceArn, &fromArn, &returnPathArn, nil)
 	if len(input.Destinations) != 2 {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -144,8 +156,11 @@ func TestSendWithDeniedSender(t *testing.T) {
 	to := []string{"bob@example.org", "charlie@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
+	sourceArn := ""
+	fromArn := ""
+	returnPathArn := ""
 	regexp, _ := regexp.Compile(`^admin@example\.org$`)
-	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, regexp, nil, nil)
+	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, regexp, nil, &sourceArn, &fromArn, &returnPathArn, nil)
 	if input != nil {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -170,8 +185,11 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 	to := []string{"bob@example.org", "charlie@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
+	sourceArn := ""
+	fromArn := ""
+	returnPathArn := ""
 	regexp, _ := regexp.Compile(`^bob@example\.org$`)
-	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, nil, regexp, nil)
+	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, nil, regexp, &sourceArn, &fromArn, &returnPathArn, nil)
 	if len(input.Destinations) != 1 {
 		t.Errorf(
 			"Unexpected number of destinations: %d. Expected: %d",
@@ -203,8 +221,11 @@ func TestSendWithApiError(t *testing.T) {
 	to := []string{"bob@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
+	sourceArn := ""
+	fromArn := ""
+	returnPathArn := ""
 	apiErr := errors.New("API failure")
-	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, nil, nil, apiErr)
+	input, out, err, sendErr := sendHelper(&origin, from, to, data, &setName, nil, nil, &sourceArn, &fromArn, &returnPathArn, apiErr)
 	if *input.Source != from {
 		t.Errorf(
 			"Unexpected source: %s. Expected: %s",
@@ -245,7 +266,10 @@ func TestNew(t *testing.T) {
 	setName := ""
 	allowFromRegExp, _ := regexp.Compile(`^admin@example\.org$`)
 	denyToRegExp, _ := regexp.Compile(`^bob@example\.org$`)
-	client := New(&setName, allowFromRegExp, denyToRegExp)
+	sourceArn := ""
+	fromArn := ""
+	returnPathArn := ""
+	client := New(&setName, allowFromRegExp, denyToRegExp, &sourceArn, &fromArn, &returnPathArn)
 	_, ok := interface{}(client).(relay.Client)
 	if !ok {
 		t.Error("Unexpected: client is not a relay.Client")
@@ -258,5 +282,14 @@ func TestNew(t *testing.T) {
 	}
 	if client.denyToRegExp != denyToRegExp {
 		t.Errorf("Unexpected denyToRegExp: %s", client.denyToRegExp)
+	}
+	if client.sourceArn != &sourceArn {
+		t.Errorf("Unexpected sourceArn: %s", *client.sourceArn)
+	}
+	if client.fromArn != &fromArn {
+		t.Errorf("Unexpected fromArn: %s", *client.fromArn)
+	}
+	if client.returnPathArn != &returnPathArn {
+		t.Errorf("Unexpected returnPathArn: %s", *client.returnPathArn)
 	}
 }
