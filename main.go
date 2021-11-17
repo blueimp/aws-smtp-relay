@@ -29,9 +29,9 @@ var (
 	user      = flag.String("u", "", "Authentication username")
 	allowFrom = flag.String("l", "", "Allowed sender emails regular expression")
 	denyTo    = flag.String("d", "", "Denied recipient emails regular expression")
-	sourceArn = flag.String("sourcearn", "", "The ARN of the identity that is associated with the sending authorization policy that permits you to send for the email address specified in the Source parameter of SendRawEmail.")
-	fromArn   = flag.String("fromarn", "", "The ARN of the identity that is associated with the sending authorization policy that permits you to specify a particular 'From' address in the header of the raw email.")
-	rPathArn  = flag.String("returnpatharn", "", "The ARN of the identity that is associated with the sending authorization policy that permits you to use the email address specified in the ReturnPath parameter of SendRawEmail.")
+	sourceArn = flag.String("f", "", "The SourceARN (when using with cross accounts) ")
+	fromArn   = flag.String("o", "", "The FromARN (when using with cross accounts)")
+	rPathArn  = flag.String("p", "", "The ReturnPathARN (when using with cross accounts)")
 )
 
 var ipMap map[string]bool
