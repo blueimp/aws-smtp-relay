@@ -1,14 +1,18 @@
 module github.com/blueimp/aws-smtp-relay
 
-go 1.14
+go 1.19
 
 require (
-	github.com/aws/aws-sdk-go v1.38.61
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/go-sql-driver/mysql v1.5.0 // indirect
-	github.com/kr/pretty v0.2.0 // indirect
-	github.com/mhale/smtpd v0.0.0-20210322105601-438c8edb069c
-	github.com/stretchr/testify v1.5.1 // indirect
-	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
+	github.com/aws/aws-sdk-go-v2/service/pinpointemail v1.12.4
+	github.com/aws/aws-sdk-go-v2/service/ses v1.15.3
+	github.com/mhale/smtpd v0.8.0
+	golang.org/x/crypto v0.6.0
+)
+
+require (
+	github.com/aws/aws-sdk-go-v2 v1.17.5 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.29 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.23 // indirect
+	github.com/aws/smithy-go v1.13.5 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 )

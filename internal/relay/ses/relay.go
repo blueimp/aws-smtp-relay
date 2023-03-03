@@ -1,18 +1,22 @@
 package relay
 
 import (
+	"context"
 	"net"
 	"regexp"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ses"
-	"github.com/aws/aws-sdk-go/service/ses/sesiface"
+	"github.com/aws/aws-sdk-go-v2/service/ses"
+	sestypes "github.com/aws/aws-sdk-go-v2/service/ses/types"
 	"github.com/blueimp/aws-smtp-relay/internal/relay"
 )
 
+type SESEmailClient interface {
+	SendRawEmail(context.Context, *ses.SendRawEmailInput, ...func(*ses.Options)) (*ses.SendRawEmailOutput, error)
+}
+
 // Client implements the Relay interface.
 type Client struct {
-	sesAPI          sesiface.SESAPI
+	sesClient       SESEmailClient
 	setName         *string
 	allowFromRegExp *regexp.Regexp
 	denyToRegExp    *regexp.Regexp
@@ -32,16 +36,20 @@ func (c Client) Send(
 		c.denyToRegExp,
 	)
 	if err != nil {
-		relay.Log(origin, &from, deniedRecipients, err)
+		relay.Log(origin, from, deniedRecipients, err)
 	}
 	if len(allowedRecipients) > 0 {
-		_, err := c.sesAPI.SendRawEmail(&ses.SendRawEmailInput{
+		_, err := c.sesClient.SendRawEmail(context.Background(), &ses.SendRawEmailInput{
+			RawMessage:           &sestypes.RawMessage{Data: data},
 			ConfigurationSetName: c.setName,
-			Source:               &from,
 			Destinations:         allowedRecipients,
-			RawMessage:           &ses.RawMessage{Data: data},
+			FromArn:              new(string),
+			ReturnPathArn:        new(string),
+			Source:               &from,
+			SourceArn:            new(string),
+			Tags:                 []sestypes.MessageTag{},
 		})
-		relay.Log(origin, &from, allowedRecipients, err)
+		relay.Log(origin, from, allowedRecipients, err)
 		if err != nil {
 			return err
 		}
@@ -56,7 +64,7 @@ func New(
 	denyToRegExp *regexp.Regexp,
 ) Client {
 	return Client{
-		sesAPI:          ses.New(session.Must(session.NewSession())),
+		sesClient:       ses.New(ses.Options{}),
 		setName:         configurationSetName,
 		allowFromRegExp: allowFromRegExp,
 		denyToRegExp:    denyToRegExp,
