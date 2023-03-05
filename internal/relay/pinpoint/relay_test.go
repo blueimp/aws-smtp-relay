@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"net"
@@ -8,8 +9,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/service/pinpointemail"
-	"github.com/aws/aws-sdk-go/service/pinpointemail/pinpointemailiface"
+	"github.com/aws/aws-sdk-go-v2/service/pinpointemail"
 	"github.com/blueimp/aws-smtp-relay/internal/relay"
 )
 
@@ -19,18 +19,12 @@ var testData = struct {
 }{}
 
 type mockPinpointEmailClient struct {
-	pinpointemailiface.PinpointEmailAPI
-}
-
-func (m *mockPinpointEmailClient) CreateConfigurationSet(
-	input *pinpointemail.CreateConfigurationSetInput,
-) (*pinpointemail.CreateConfigurationSetOutput, error) {
-	return &pinpointemail.CreateConfigurationSetOutput{}, nil
 }
 
 func (m *mockPinpointEmailClient) SendEmail(
+	context context.Context,
 	input *pinpointemail.SendEmailInput,
-) (*pinpointemail.SendEmailOutput, error) {
+	fns ...func(*pinpointemail.Options)) (*pinpointemail.SendEmailOutput, error) {
 	testData.input = input
 	return nil, testData.err
 }
@@ -59,7 +53,7 @@ func sendHelper(
 	os.Stderr = errWriter
 	func() {
 		c := Client{
-			pinpointAPI:     &mockPinpointEmailClient{},
+			pinpointClient:  &mockPinpointEmailClient{},
 			setName:         configurationSetName,
 			allowFromRegExp: allowFromRegExp,
 			denyToRegExp:    denyToRegExp,
@@ -95,10 +89,10 @@ func TestSend(t *testing.T) {
 			1,
 		)
 	}
-	if *input.Destination.ToAddresses[0] != to[0] {
+	if input.Destination.ToAddresses[0] != to[0] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destination.ToAddresses[0],
+			input.Destination.ToAddresses[0],
 			to[0],
 		)
 	}
@@ -128,10 +122,10 @@ func TestSendWithMultipleRecipients(t *testing.T) {
 			2,
 		)
 	}
-	if *input.Destination.ToAddresses[0] != to[0] {
+	if input.Destination.ToAddresses[0] != to[0] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destination.ToAddresses[0],
+			input.Destination.ToAddresses[0],
 			to[0],
 		)
 	}
@@ -184,10 +178,10 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 			1,
 		)
 	}
-	if *input.Destination.ToAddresses[0] != to[1] {
+	if input.Destination.ToAddresses[0] != to[1] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destination.ToAddresses[0],
+			input.Destination.ToAddresses[0],
 			to[1],
 		)
 	}
@@ -224,10 +218,10 @@ func TestSendWithApiError(t *testing.T) {
 			1,
 		)
 	}
-	if *input.Destination.ToAddresses[0] != to[0] {
+	if input.Destination.ToAddresses[0] != to[0] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destination.ToAddresses[0],
+			input.Destination.ToAddresses[0],
 			to[0],
 		)
 	}
