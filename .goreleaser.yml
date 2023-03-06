@@ -50,6 +50,8 @@ changelog:
 # .goreleaser.yaml
 dockers:
 - image_templates: ["ghcr.io/mabels/{{ .ProjectName }}:{{ .Version }}-amd64"]
+  goos: linux
+  goarch: amd64
   dockerfile: Dockerfile
   build_flag_templates:
   - --platform=linux/amd64
@@ -77,6 +79,9 @@ dockers:
 
 - image_templates: ["ghcr.io/mabels/{{ .ProjectName }}:{{ .Version }}-arm64v8"]
   dockerfile: Dockerfile
+  goos: linux
+  goarch: arm64
+  goarm: "8"
   build_flag_templates:
   - --platform=linux/arm64/v8
   - --label=org.opencontainers.image.title={{ .ProjectName }}
@@ -90,6 +95,9 @@ dockers:
 
 - image_templates: ["ghcr.io/mabels/{{ .ProjectName }}:{{ .Version }}-armv7"]
   dockerfile: Dockerfile
+  goos: linux
+  goarch: arm
+  goarm: "7"
   build_flag_templates:
   - --platform=linux/arm/v7
   - --label=org.opencontainers.image.title={{ .ProjectName }}
