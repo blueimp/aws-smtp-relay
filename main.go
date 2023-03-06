@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/blueimp/aws-smtp-relay/internal/auth"
+	receiver "github.com/blueimp/aws-smtp-relay/internal/receiver/aws_ses"
 	"github.com/blueimp/aws-smtp-relay/internal/relay"
 	pinpointrelay "github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
 	sesrelay "github.com/blueimp/aws-smtp-relay/internal/relay/ses"
@@ -95,18 +96,41 @@ func configure() error {
 	}
 	bcryptHash = []byte(os.Getenv("BCRYPT_HASH"))
 	password = []byte(os.Getenv("PASSWORD"))
+
 	return nil
 }
 
 func main() {
 	flag.Parse()
-	var srv *smtpd.Server
 	err := configure()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	observeCfg, err := receiver.ConfigureObserver()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	if observeCfg != nil {
+		go func() {
+			obs, err := receiver.NewAWSSESObserver(observeCfg)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			err = obs.InitSQS()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			obs.Observe()
+		}()
+	}
+	srv, err := server()
 	if err == nil {
-		srv, err = server()
-		if err == nil {
-			err = srv.ListenAndServe()
-		}
+		err = srv.ListenAndServe()
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
