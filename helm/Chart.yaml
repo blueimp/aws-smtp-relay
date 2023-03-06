@@ -1,0 +1,11 @@
+---
+apiVersion: v2
+name: aws-smtp-relay
+description: SMTP server to relay emails via Amazon SES or Amazon Pinpoint using IAM roles.
+appVersion: 0.0.1
+
+type: application
+version: 0.0.1
+maintainers:
+  - name: Meno Abels
+    email: meno.abels@adviser.com

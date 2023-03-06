@@ -1,0 +1,75 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "awsSmtpRelay.fullname" . }}
+  labels: {{ include "awsSmtpRelay.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    {{- toYaml .Values.awsSmtpRelay.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "awsSmtpRelay.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: awsSmtpRelay
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.awsSmtpRelay.annotations }}
+        {{ . | toYaml | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "awsSmtpRelay.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: awsSmtpRelay
+        {{- with .Values.awsSmtpRelay.labels }}
+        {{ . | toYaml | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "awsSmtpRelay.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: expose-oidc
+          args:
+            - "-o"
+            - "-b"
+            - "{{ .Values.awsSmtpRelay.bucketName }}"
+            - "-q"
+            - "{{ .Values.awsSmtpRelay.SQSQueueName }}"
+            - "-H"
+            - "{{ .Values.awsSmtpRelay.smtpReceiverHost }}"
+          env:
+            {{- with .Values.awsSmtpRelay.env }}
+            {{ . | toYaml | nindent 12 }}
+            {{- end }}
+          image: "{{ .Values.image.repository }}:{{ include "awsSmtpRelay.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.awsSmtpRelay.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ int .Values.awsSmtpRelay.port }}
+              protocol: TCP
+          {{- with .Values.awsSmtpRelay.livenessProbe }}
+          livenessProbe:
+            {{- . | toYaml | nindent 12 }}
+          {{- end }}
+          {{- with .Values.awsSmtpRelay.readinessProbe }}
+          readinessProbe:
+            {{- . | toYaml | nindent 12 }}
+          {{- end }}
+          {{- with .Values.awsSmtpRelay.VolumeMounts }}
+            {{- . | toYaml | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.awsSmtpRelay.resources | nindent 12 }}
+      {{- with .Values.awsSmtpRelay.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.awsSmtpRelay.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.awsSmtpRelay.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

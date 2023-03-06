@@ -1,0 +1,39 @@
+---
+## Docker image configuration
+##
+image:
+  repository: ghcr.io/mabels/aws-smtp-relay
+  ## Tag to override with, will default to the application version.
+  ##
+  tag: latest
+  pullPolicy: IfNotPresent
+  ## Optionally specify an array of imagePullSecrets.
+  ## Secrets must be manually created in the namespace.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+  ##
+  #pullSecrets:
+  #   - myRegistryKeySecretName
+
+## Override part of the installed name, will still keep release name.
+##
+# nameOverride: ""
+
+## Override the full name of the installed chart.
+##
+# fullnameOverride: ""
+
+awsSmtpRelay:
+  port: 80
+  bucketName: ""
+  SQSQueueName: ""
+  smtpReceiverHost: ""
+  env: []
+  service:
+    type: ClusterIP
+    port: 80
+  strategy: {}
+  tolerations: {}
+  affinity: {}
+  labels: {}
+  nodeSelector: {}
+  resources: {}
