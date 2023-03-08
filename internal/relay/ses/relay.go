@@ -1,4 +1,4 @@
-package relay
+package ses
 
 import (
 	"context"
@@ -7,7 +7,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	sestypes "github.com/aws/aws-sdk-go-v2/service/ses/types"
-	"github.com/blueimp/aws-smtp-relay/internal/relay"
+	"github.com/blueimp/aws-smtp-relay/internal"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/filter"
 )
 
 type SESEmailClient interface {
@@ -29,14 +30,14 @@ func (c Client) Send(
 	to []string,
 	data []byte,
 ) error {
-	allowedRecipients, deniedRecipients, err := relay.FilterAddresses(
+	allowedRecipients, deniedRecipients, err := filter.FilterAddresses(
 		from,
 		to,
 		c.allowFromRegExp,
 		c.denyToRegExp,
 	)
 	if err != nil {
-		relay.Log(origin, from, deniedRecipients, err)
+		internal.Log(origin, from, deniedRecipients, err)
 	}
 	if len(allowedRecipients) > 0 {
 		_, err := c.sesClient.SendRawEmail(context.Background(), &ses.SendRawEmailInput{
@@ -49,7 +50,7 @@ func (c Client) Send(
 			SourceArn:            new(string),
 			Tags:                 []sestypes.MessageTag{},
 		})
-		relay.Log(origin, from, allowedRecipients, err)
+		internal.Log(origin, from, allowedRecipients, err)
 		if err != nil {
 			return err
 		}

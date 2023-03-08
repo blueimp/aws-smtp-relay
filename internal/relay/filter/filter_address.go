@@ -1,15 +1,8 @@
-/*
-Package relay provides an interface to relay emails via Amazon SES/Pinpoint API.
-*/
-package relay
+package filter
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
-	"net"
 	"regexp"
-	"time"
 )
 
 var (
@@ -21,41 +14,6 @@ var (
 		"denied recipients: recipients match the denied emails regexp",
 	)
 )
-
-// Client provides an interface to send emails.
-type Client interface {
-	Send(
-		origin net.Addr,
-		from string,
-		to []string,
-		data []byte,
-	) error
-}
-
-type logEntry struct {
-	Time  time.Time
-	IP    string
-	From  string
-	To    []string
-	Error *string
-}
-
-// Log creates a log entry and prints it as JSON to STDOUT.
-func Log(origin net.Addr, from string, to []string, err error) {
-	ip := origin.(*net.TCPAddr).IP.String()
-	entry := &logEntry{
-		Time: time.Now().UTC(),
-		IP:   ip,
-		From: from,
-		To:   to,
-	}
-	if err != nil {
-		errString := err.Error()
-		entry.Error = &errString
-	}
-	b, _ := json.Marshal(entry)
-	fmt.Println(string(b))
-}
 
 // FilterAddresses validates sender and recipients and returns lists for allowed
 // and denied recipients.

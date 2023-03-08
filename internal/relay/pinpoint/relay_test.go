@@ -1,4 +1,4 @@
-package relay
+package pinpoint
 
 import (
 	"context"
@@ -6,11 +6,12 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"reflect"
 	"regexp"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/pinpointemail"
-	"github.com/blueimp/aws-smtp-relay/internal/relay"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/filter"
 )
 
 var testData = struct {
@@ -152,8 +153,8 @@ func TestSendWithDeniedSender(t *testing.T) {
 			0,
 		)
 	}
-	if sendErr != relay.ErrDeniedSender {
-		t.Errorf("Unexpected error: %s. Expected: %s", sendErr, relay.ErrDeniedSender)
+	if sendErr != filter.ErrDeniedSender {
+		t.Errorf("Unexpected error: %s. Expected: %s", sendErr, filter.ErrDeniedSender)
 	}
 	if len(out) == 0 {
 		t.Error("Unexpected empty stdout")
@@ -185,8 +186,8 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 			to[1],
 		)
 	}
-	if sendErr != relay.ErrDeniedRecipients {
-		t.Errorf("Unexpected error: %s. Expected: %s", sendErr, relay.ErrDeniedRecipients)
+	if sendErr != filter.ErrDeniedRecipients {
+		t.Errorf("Unexpected error: %s. Expected: %s", sendErr, filter.ErrDeniedRecipients)
 	}
 	if len(out) == 0 {
 		t.Error("Unexpected empty stdout")
@@ -245,9 +246,9 @@ func TestNew(t *testing.T) {
 	allowFromRegExp, _ := regexp.Compile(`^admin@example\.org$`)
 	denyToRegExp, _ := regexp.Compile(`^bob@example\.org$`)
 	client := New(&setName, allowFromRegExp, denyToRegExp)
-	_, ok := interface{}(client).(relay.Client)
-	if !ok {
-		t.Error("Unexpected: client is not a relay.Client")
+	typ := reflect.TypeOf(client).String()
+	if typ != "pinpoint.Client" {
+		t.Errorf("Unexpected: client is not a relay.Client:%v", typ)
 	}
 	if client.setName != &setName {
 		t.Errorf("Unexpected setName: %s", *client.setName)

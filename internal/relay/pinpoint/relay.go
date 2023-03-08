@@ -1,4 +1,4 @@
-package relay
+package pinpoint
 
 import (
 	"context"
@@ -7,7 +7,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/pinpointemail"
 	pinpointemailtypes "github.com/aws/aws-sdk-go-v2/service/pinpointemail/types"
-	"github.com/blueimp/aws-smtp-relay/internal/relay"
+	"github.com/blueimp/aws-smtp-relay/internal"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/filter"
 )
 
 type PinpointEmailClient interface {
@@ -29,14 +30,14 @@ func (c Client) Send(
 	to []string,
 	data []byte,
 ) error {
-	allowedRecipients, deniedRecipients, err := relay.FilterAddresses(
+	allowedRecipients, deniedRecipients, err := filter.FilterAddresses(
 		from,
 		to,
 		c.allowFromRegExp,
 		c.denyToRegExp,
 	)
 	if err != nil {
-		relay.Log(origin, from, deniedRecipients, err)
+		internal.Log(origin, from, deniedRecipients, err)
 	}
 	if len(allowedRecipients) > 0 {
 		_, err := c.pinpointClient.SendEmail(context.Background(), &pinpointemail.SendEmailInput{
@@ -48,7 +49,7 @@ func (c Client) Send(
 			FromEmailAddress:               &from,
 			ReplyToAddresses:               to,
 		})
-		relay.Log(origin, from, allowedRecipients, err)
+		internal.Log(origin, from, allowedRecipients, err)
 		if err != nil {
 			return err
 		}

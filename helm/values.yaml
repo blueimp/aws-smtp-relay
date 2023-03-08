@@ -62,6 +62,11 @@ awsSmtpRelay:
     denyTo: ""
     service:
       type: ClusterIP
+
+  serviceAccount:
+     create: false
+     name: "default"
+     annotations: {}
   strategy: {}
   livenessProbe: {}
   readinessProbe: {}

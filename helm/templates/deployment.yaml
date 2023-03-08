@@ -27,63 +27,63 @@ spec:
     spec:
       {{- include "awsSmtpRelay.imagePullSecrets" . | nindent 6 }}
       containers:
-        - name: expose-oidc
+        - name: aws-smtp-relay
           args:
-            - "-SES.Bucket.KeyPrefix"
+            - "--SES.Bucket.KeyPrefix"
             - {{ .Values.awsSmtpRelay.observer.bucket.keyPrefix }}
-            - "-SES.Bucket.Name"
+            - "--SES.Bucket.Name"
             - {{ .Values.awsSmtpRelay.observer.bucket.name }}
-            - "-SES.ObserverEnable"
+            - "--SES.ObserverEnable"
             - "{{ ternary "true" "false" .Values.awsSmtpRelay.observer.enable }}"
-            - "-SES.SQS.MaxMessages"
+            - "--SES.SQS.MaxMessages"
             - "{{ .Values.awsSmtpRelay.observer.SQS.maxMessages }}"
-            - "-SES.SQS.Name"
+            - "--SES.SQS.Name"
             - {{ .Values.awsSmtpRelay.observer.SQS.name }}
-            - "-SES.SQS.Timeout"
+            - "--SES.SQS.Timeout"
             - "{{ .Values.awsSmtpRelay.observer.SQS.timeout }}"
-            - "-SES.Smtp.Host"
+            - "--SES.Smtp.Host"
             - {{ .Values.awsSmtpRelay.observer.smtp.host }}
-            - "-SES.Smtp.Port"
+            - "--SES.Smtp.Port"
             - "{{ .Values.awsSmtpRelay.observer.smtp.port }}"
-            - "-SES.Smtp.ConnectionTLS"
+            - "--SES.Smtp.ConnectionTLS"
             - "{{ ternary "true" "false" .Values.awsSmtpRelay.observer.smtp.connectionTLS }}"
-            - "-SES.Smtp.ForceSTARTTLS"
+            - "--SES.Smtp.ForceSTARTTLS"
             - "{{ ternary "true" "false " .Values.awsSmtpRelay.observer.smtp.forceSTARTTLS }}"
-            - "-SES.Smtp.InsecureTLS"
+            - "--SES.Smtp.InsecureTLS"
             - "{{ ternary "true" "false" .Values.awsSmtpRelay.observer.smtp.insecureTLS }}"
-            - "-SES.Smtp.Identity"
+            - "--SES.Smtp.Identity"
             - {{ .Values.awsSmtpRelay.observer.smtp.identity }}
-            - "-SES.Smtp.MyName"
+            - "--SES.Smtp.MyName"
             - {{ .Values.awsSmtpRelay.observer.smtp.myName }}
-            - "-SES.Smtp.Pass"
+            - "--SES.Smtp.Pass"
             - {{ .Values.awsSmtpRelay.observer.smtp.pass }}
-            - "-SES.Smtp.User"
+            - "--SES.Smtp.User"
             - {{ .Values.awsSmtpRelay.observer.smtp.user }}
-            - "a"
+            - "--addr"
             - "{{ .Values.awsSmtpRelay.relay.addr.host }}:{{ .Values.awsSmtpRelay.relay.addr.port }}"
-            - "n"
+            - "--name"
             - {{ .Values.awsSmtpRelay.relay.name }}
-            - "h"
+            - "--host"
             - {{ .Values.awsSmtpRelay.relay.host }}
-            - "c"
+            - "--certFile"
             - {{ .Values.awsSmtpRelay.relay.certFile }}
-            - "k"
+            - "--keyFile"
             - {{ .Values.awsSmtpRelay.relay.keyFile }}
-            - "s"
+            - "--startTLS"
             - "{{ ternary "true" "false" .Values.awsSmtpRelay.relay.startTLS }}"
-            - "t"
+            - "--onlyTLS"
             - "{{ ternary "true" "false"  .Values.awsSmtpRelay.relay.onlyTLS }}"
-            - "r"
+            - "-relayAPI"
             - {{ .Values.awsSmtpRelay.relay.relayAPI }}
-            - "e"
+            - "--setName"
             - {{ .Values.awsSmtpRelay.relay.setName }}
-            - "i"
+            - "--ips"
             - {{ .Values.awsSmtpRelay.relay.ips }}
-            - "u"
+            - "--user"
             - {{ .Values.awsSmtpRelay.relay.user }}
-            - "l"
+            - "--allowFrom"
             - {{ .Values.awsSmtpRelay.relay.allowFrom }}
-            - "d"
+            - "--denyTo"
             - {{ .Values.awsSmtpRelay.relay.denyTo }}
           env:
             - value: AWS_REGION
@@ -113,6 +113,8 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      serviceAccount: {{ .Values.awsSmtpRelay.serviceAccount.name }}
+      serviceAccountName: {{ .Values.awsSmtpRelay.serviceAccount.name }}
     {{- with .Values.awsSmtpRelay.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
