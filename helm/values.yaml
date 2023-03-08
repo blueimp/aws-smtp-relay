@@ -23,15 +23,50 @@ image:
 # fullnameOverride: ""
 
 awsSmtpRelay:
-  port: 80
-  bucketName: ""
-  SQSQueueName: ""
-  smtpReceiverHost: ""
+  region: "us-east-1"
+  observer:
+    enable: false
+    SQS:
+      name: ""
+      timeout: 10
+      maxMessages: 10
+    bucket:
+      name: ""
+      keyPrefix: ""
+    smtp:
+      host: ""
+      port: 25252
+      connectionTLS: false
+      forceSTARTTLS: true
+      insecureTLS: true
+      identity: ""
+      user: ""
+      pass: ""
+      myName: "AWS-SMTP-Relay-Observer"
   env: []
-  service:
-    type: ClusterIP
-    port: 80
+  relay:
+    addr:
+      host: ""
+      port: 10250
+    name: "AWS SMTP Relay"
+    host: ""
+    certFile: ""
+    keyFile: ""
+    startTLS: false
+    onlyTLS: false
+    relayAPI: ses
+    setName: ""
+    ips: ""
+    user: ""
+    allowFrom: ""
+    denyTo: ""
+    service:
+      type: ClusterIP
   strategy: {}
+  livenessProbe: {}
+  readinessProbe: {}
+  securityContext: {}
+  annotations: {}
   tolerations: {}
   affinity: {}
   labels: {}

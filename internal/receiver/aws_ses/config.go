@@ -6,82 +6,61 @@ import (
 	"os"
 )
 
-type AwsSesConfig struct {
-	QueueName   string
-	Context     context.Context
-	Timeout     int32 // seconds
-	MaxMessages int32
-	Bucket      string
-	KeyPrefix   string
-	SMTP        struct {
-		Host          string
-		Port          int
-		ConnectionTLS bool // 465
-		ForceSTARTTLS bool // force STARTTLS
-		InsecureTLS   bool // skip TLS verification
-		User          *string
-		Pass          *string
-		Identity      *string // AUTH IDENTITY
-		MyName        *string // EHLO name
-	}
+type ConfigSQS struct {
+	Name        string
+	Timeout     int
+	MaxMessages int
+}
+type ConfigBucket struct {
+	Name      string
+	KeyPrefix string
+}
+type ConfigSmtp struct {
+	Host          string
+	Port          int
+	ConnectionTLS bool
+	ForceSTARTTLS bool
+	InsecureTLS   bool
+	Identity      string
+	User          string
+	Pass          string
+	MyName        string
 }
 
-func ConfigureObserver(clis ...CliArgs) (*AwsSesConfig, error) {
-	cli := FlagCliArgs
+type Config struct {
+	Enable  bool
+	Context context.Context
+	SQS     ConfigSQS
+	Bucket  ConfigBucket
+	Smtp    ConfigSmtp
+}
+
+func ConfigureObserver(clis ...Config) (*Config, error) {
+	incli := FlagCliArgs
 	if len(clis) != 0 {
-		cli = clis[0]
+		incli = clis[0]
 	}
-	if !*cli.enableObserver {
+	// own copy
+	cli := incli
+	if !cli.Enable {
 		return nil, nil
 	}
-	if *cli.queueName == "" {
+	if cli.Context == nil {
+		cli.Context = context.Background()
+	}
+	if cli.SQS.Name == "" {
 		return nil, errors.New("QueueName is required")
 	}
-	timeout := *cli.queueTimeout
-	maxMessage := *cli.queueMaxMessage
-	if *cli.queueS3Bucket == "" {
+	if cli.Bucket.Name == "" {
 		return nil, errors.New("QueueS3Bucket is required")
 	}
-	if *cli.queueSmtpHost == "" {
+	if cli.Smtp.Host == "" {
 		return nil, errors.New("SMTP Host is required")
 	}
 	pass, is := os.LookupEnv("QUEUE_SMTP_PASS")
 	if is {
-		cli.queueSmtpPass = &pass
-	}
-	if *cli.queueSmtpMyName == "" {
-		defMyName := "AWS-SMTP-Relay-Observer"
-		cli.queueSmtpMyName = &defMyName
+		cli.Smtp.Pass = pass
 	}
 
-	observeCfg := &AwsSesConfig{
-		QueueName:   *cli.queueName,
-		Context:     context.Background(),
-		Timeout:     int32(timeout),
-		MaxMessages: int32(maxMessage),
-		Bucket:      *cli.queueS3Bucket,
-		KeyPrefix:   *cli.queueS3Prefix,
-		SMTP: struct {
-			Host          string
-			Port          int
-			ConnectionTLS bool
-			ForceSTARTTLS bool
-			InsecureTLS   bool
-			User          *string
-			Pass          *string
-			Identity      *string
-			MyName        *string
-		}{
-			Host:          *cli.queueSmtpHost,
-			Port:          *cli.queueSmtpPort,
-			ConnectionTLS: *cli.queueSmtpConnectionTLS,
-			ForceSTARTTLS: *cli.queueSmtpForceSTARTTLS,
-			InsecureTLS:   *cli.queueSmtpInsecureTLS,
-			User:          cli.queueSmtpUser,
-			Pass:          cli.queueSmtpPass,
-			Identity:      cli.queueSmtpIdentity,
-			MyName:        cli.queueSmtpMyName,
-		},
-	}
-	return observeCfg, nil
+	return &cli, nil
 }

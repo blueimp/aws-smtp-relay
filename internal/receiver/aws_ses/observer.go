@@ -25,7 +25,7 @@ type AwsSesObserver struct {
 	}
 	S3Client S3Client
 	Smtp     SMTP
-	Config   AwsSesConfig
+	Config   Config
 }
 
 func (aso *AwsSesObserver) getSqsClient(reset ...bool) (SQSClient, error) {
@@ -60,7 +60,7 @@ func (aso *AwsSesObserver) InitSQS() error {
 	}
 
 	urlResult, err := sqsClient.GetQueueUrl(aso.Config.Context, &sqs.GetQueueUrlInput{
-		QueueName: &aso.Config.QueueName,
+		QueueName: &aso.Config.SQS.Name,
 	})
 	if err != nil {
 		return fmt.Errorf("error getting queue url, " + err.Error())
@@ -72,13 +72,13 @@ func (aso *AwsSesObserver) InitSQS() error {
 			string(sqsTypes.QueueAttributeNameAll),
 		},
 		QueueUrl:            aso.SQS.SQSQueueURL,
-		MaxNumberOfMessages: aso.Config.MaxMessages,
-		VisibilityTimeout:   aso.Config.Timeout,
+		MaxNumberOfMessages: int32(aso.Config.SQS.MaxMessages),
+		VisibilityTimeout:   int32(aso.Config.SQS.Timeout),
 	}
 	return nil
 }
 
-func NewAWSSESObserver(cfg *AwsSesConfig) (*AwsSesObserver, error) {
+func NewAWSSESObserver(cfg *Config) (*AwsSesObserver, error) {
 	if cfg.Context == nil {
 		cfg.Context = context.TODO()
 	}
@@ -89,7 +89,7 @@ func NewAWSSESObserver(cfg *AwsSesConfig) (*AwsSesObserver, error) {
 }
 
 func (aso *AwsSesObserver) getS3Key(asn *AwsSesNotification) *string {
-	my := strings.Join([]string{aso.Config.KeyPrefix, asn.Mail.MessageId}, "")
+	my := strings.Join([]string{aso.Config.Bucket.KeyPrefix, asn.Mail.MessageId}, "")
 	return &my
 }
 
@@ -103,7 +103,7 @@ func (aso *AwsSesObserver) fetchMessage(asn *AwsSesNotification) (*s3.GetObjectO
 			return nil, err
 		}
 		out, err = s3Client.GetObject(aso.Config.Context, &s3.GetObjectInput{
-			Bucket: &aso.Config.Bucket,
+			Bucket: &aso.Config.Bucket.Name,
 			Key:    aso.getS3Key(asn),
 		})
 		if err != nil {
@@ -118,30 +118,30 @@ func (aso *AwsSesObserver) fetchMessage(asn *AwsSesNotification) (*s3.GetObjectO
 func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOutput) (error, error) {
 	var err error
 	var c SMTPClient
-	if !aso.Config.SMTP.ConnectionTLS {
-		c, err = aso.Smtp.Dial(fmt.Sprintf("%s:%d", aso.Config.SMTP.Host, aso.Config.SMTP.Port))
+	if !aso.Config.Smtp.ConnectionTLS {
+		c, err = aso.Smtp.Dial(fmt.Sprintf("%s:%d", aso.Config.Smtp.Host, aso.Config.Smtp.Port))
 	} else {
-		c, err = aso.Smtp.DialTLS(fmt.Sprintf("%s:%d", aso.Config.SMTP.Host, aso.Config.SMTP.Port), &tls.Config{InsecureSkipVerify: aso.Config.SMTP.InsecureTLS})
+		c, err = aso.Smtp.DialTLS(fmt.Sprintf("%s:%d", aso.Config.Smtp.Host, aso.Config.Smtp.Port), &tls.Config{InsecureSkipVerify: aso.Config.Smtp.InsecureTLS})
 	}
 	if err != nil {
 		return nil, err
 	}
 	defer c.Close()
-	myName := aso.Config.SMTP.MyName
-	err = c.Hello(*myName)
+	myName := aso.Config.Smtp.MyName
+	err = c.Hello(myName)
 	if err != nil {
 		return nil, err
 	}
-	if aso.Config.SMTP.ForceSTARTTLS {
-		err = c.StartTLS(&tls.Config{InsecureSkipVerify: aso.Config.SMTP.InsecureTLS})
+	if aso.Config.Smtp.ForceSTARTTLS {
+		err = c.StartTLS(&tls.Config{InsecureSkipVerify: aso.Config.Smtp.InsecureTLS})
 		if err != nil {
 			return nil, err
 		}
 	}
-	if *aso.Config.SMTP.User != "" && *aso.Config.SMTP.Pass != "" {
-		// auth := sasl.NewLoginClient(*aso.Config.SMTP.User, *aso.Config.SMTP.Pass)
-		// auth := smtp.CRAMMD5Auth(*aso.Config.SMTP.User, *aso.Config.SMTP.Pass)
-		auth := smtp.CRAMMD5Auth(*aso.Config.SMTP.User, *aso.Config.SMTP.Pass)
+	if aso.Config.Smtp.User != "" && aso.Config.Smtp.Pass != "" {
+		// auth := sasl.NewLoginClient(*aso.Config.Smtp.User, *aso.Config.Smtp.Pass)
+		// auth := smtp.CRAMMD5Auth(*aso.Config.Smtp.User, *aso.Config.Smtp.Pass)
+		auth := smtp.CRAMMD5Auth(aso.Config.Smtp.User, aso.Config.Smtp.Pass)
 		err = c.Auth(auth)
 		if err != nil {
 			return nil, err
@@ -201,7 +201,7 @@ func (aso *AwsSesObserver) deleteMessage(asn *AwsSesNotification, msg *sqsTypes.
 			return err
 		}
 		_, err = client.DeleteObject(aso.Config.Context, &s3.DeleteObjectInput{
-			Bucket: &aso.Config.Bucket,
+			Bucket: &aso.Config.Bucket.Name,
 			Key:    aso.getS3Key(asn),
 		})
 		if err != nil {

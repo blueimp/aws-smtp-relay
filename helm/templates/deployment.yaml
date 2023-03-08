@@ -29,14 +29,65 @@ spec:
       containers:
         - name: expose-oidc
           args:
-            - "-o"
-            - "-b"
-            - "{{ .Values.awsSmtpRelay.bucketName }}"
-            - "-q"
-            - "{{ .Values.awsSmtpRelay.SQSQueueName }}"
-            - "-H"
-            - "{{ .Values.awsSmtpRelay.smtpReceiverHost }}"
+            - "-SES.Bucket.KeyPrefix"
+            - {{ .Values.awsSmtpRelay.observer.bucket.keyPrefix }}
+            - "-SES.Bucket.Name"
+            - {{ .Values.awsSmtpRelay.observer.bucket.name }}
+            - "-SES.ObserverEnable"
+            - "{{ ternary "true" "false" .Values.awsSmtpRelay.observer.enable }}"
+            - "-SES.SQS.MaxMessages"
+            - "{{ .Values.awsSmtpRelay.observer.SQS.maxMessages }}"
+            - "-SES.SQS.Name"
+            - {{ .Values.awsSmtpRelay.observer.SQS.name }}
+            - "-SES.SQS.Timeout"
+            - "{{ .Values.awsSmtpRelay.observer.SQS.timeout }}"
+            - "-SES.Smtp.Host"
+            - {{ .Values.awsSmtpRelay.observer.smtp.host }}
+            - "-SES.Smtp.Port"
+            - "{{ .Values.awsSmtpRelay.observer.smtp.port }}"
+            - "-SES.Smtp.ConnectionTLS"
+            - "{{ ternary "true" "false" .Values.awsSmtpRelay.observer.smtp.connectionTLS }}"
+            - "-SES.Smtp.ForceSTARTTLS"
+            - "{{ ternary "true" "false " .Values.awsSmtpRelay.observer.smtp.forceSTARTTLS }}"
+            - "-SES.Smtp.InsecureTLS"
+            - "{{ ternary "true" "false" .Values.awsSmtpRelay.observer.smtp.insecureTLS }}"
+            - "-SES.Smtp.Identity"
+            - {{ .Values.awsSmtpRelay.observer.smtp.identity }}
+            - "-SES.Smtp.MyName"
+            - {{ .Values.awsSmtpRelay.observer.smtp.myName }}
+            - "-SES.Smtp.Pass"
+            - {{ .Values.awsSmtpRelay.observer.smtp.pass }}
+            - "-SES.Smtp.User"
+            - {{ .Values.awsSmtpRelay.observer.smtp.user }}
+            - "a"
+            - "{{ .Values.awsSmtpRelay.relay.addr.host }}:{{ .Values.awsSmtpRelay.relay.addr.port }}"
+            - "n"
+            - {{ .Values.awsSmtpRelay.relay.name }}
+            - "h"
+            - {{ .Values.awsSmtpRelay.relay.host }}
+            - "c"
+            - {{ .Values.awsSmtpRelay.relay.certFile }}
+            - "k"
+            - {{ .Values.awsSmtpRelay.relay.keyFile }}
+            - "s"
+            - "{{ ternary "true" "false" .Values.awsSmtpRelay.relay.startTLS }}"
+            - "t"
+            - "{{ ternary "true" "false"  .Values.awsSmtpRelay.relay.onlyTLS }}"
+            - "r"
+            - {{ .Values.awsSmtpRelay.relay.relayAPI }}
+            - "e"
+            - {{ .Values.awsSmtpRelay.relay.setName }}
+            - "i"
+            - {{ .Values.awsSmtpRelay.relay.ips }}
+            - "u"
+            - {{ .Values.awsSmtpRelay.relay.user }}
+            - "l"
+            - {{ .Values.awsSmtpRelay.relay.allowFrom }}
+            - "d"
+            - {{ .Values.awsSmtpRelay.relay.denyTo }}
           env:
+            - value: AWS_REGION
+              name: {{ .Values.awsSmtpRelay.region }}
             {{- with .Values.awsSmtpRelay.env }}
             {{ . | toYaml | nindent 12 }}
             {{- end }}
@@ -45,8 +96,8 @@ spec:
           securityContext:
             {{- toYaml .Values.awsSmtpRelay.securityContext | nindent 12 }}
           ports:
-            - name: http
-              containerPort: {{ int .Values.awsSmtpRelay.port }}
+            - name: smtp
+              containerPort: {{ int .Values.awsSmtpRelay.relay.addr.port }}
               protocol: TCP
           {{- with .Values.awsSmtpRelay.livenessProbe }}
           livenessProbe:
@@ -54,9 +105,6 @@ spec:
           {{- end }}
           {{- with .Values.awsSmtpRelay.readinessProbe }}
           readinessProbe:
-            {{- . | toYaml | nindent 12 }}
-          {{- end }}
-          {{- with .Values.awsSmtpRelay.VolumeMounts }}
             {{- . | toYaml | nindent 12 }}
           {{- end }}
           resources:

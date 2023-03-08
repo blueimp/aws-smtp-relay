@@ -200,14 +200,14 @@ func (m *mockSQSClient) ReceiveMessage(ctx context.Context, params *sqs.ReceiveM
 
 func TestObserver(t *testing.T) {
 	cli := FlagCliArgs
-	cli.enableObserver = boolPtr(true)
-	cli.queueName = strPtr("testQ")
-	cli.queueSmtpHost = strPtr("host")
-	cli.queueS3Bucket = strPtr("bucket")
-	cli.queueS3Prefix = strPtr("prefix/")
-	cli.queueSmtpIdentity = strPtr("identity")
-	cli.queueSmtpUser = strPtr("user")
-	cli.queueSmtpPass = strPtr("pass")
+	cli.Enable = true
+	cli.SQS.Name = "testQ"
+	cli.Bucket.Name = "bucket"
+	cli.Bucket.KeyPrefix = "prefix/"
+	cli.Smtp.Host = "host"
+	cli.Smtp.Identity = "identity"
+	cli.Smtp.User = "user"
+	cli.Smtp.Pass = "pass"
 	cfg, err := ConfigureObserver(cli)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
@@ -244,7 +244,7 @@ func TestNotEnabledObserver(t *testing.T) {
 
 func TestEnabledObserver(t *testing.T) {
 	cli := FlagCliArgs
-	cli.enableObserver = boolPtr(true)
+	cli.Enable = true
 	_, err := ConfigureObserver(cli)
 	if err == nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -253,112 +253,112 @@ func TestEnabledObserver(t *testing.T) {
 
 func TestConfiguredDefault(t *testing.T) {
 	cli := FlagCliArgs
-	cli.enableObserver = boolPtr(true)
-	cli.queueName = strPtr("queueName")
-	cli.queueS3Bucket = strPtr("bucket")
-	cli.queueSmtpHost = strPtr("host")
-	cli.queueSmtpPass = strPtr("pass")
+	cli.Enable = true
+	cli.SQS.Name = "queueName"
+	cli.Bucket.Name = "bucket"
+	cli.Smtp.Host = "host"
+	cli.Smtp.Pass = "pass"
 	obs, err := ConfigureObserver(cli)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	if obs.QueueName != "queueName" {
-		t.Errorf("Unexpected queue name: %s", obs.QueueName)
+	if obs.SQS.Name != "queueName" {
+		t.Errorf("Unexpected queue name: %s", obs.SQS.Name)
 	}
-	if obs.Timeout != 10 {
-		t.Errorf("Unexpected timeout: %d", obs.Timeout)
+	if obs.SQS.Timeout != 10 {
+		t.Errorf("Unexpected timeout: %d", obs.SQS.Timeout)
 	}
-	if obs.MaxMessages != 10 {
-		t.Errorf("Unexpected max messages: %d", obs.MaxMessages)
+	if obs.SQS.MaxMessages != 10 {
+		t.Errorf("Unexpected max messages: %d", obs.SQS.MaxMessages)
 	}
-	if obs.Bucket != "bucket" {
-		t.Errorf("Unexpected bucket: %s", obs.Bucket)
+	if obs.Bucket.Name != "bucket" {
+		t.Errorf("Unexpected bucket: %s", obs.Bucket.Name)
 	}
-	if obs.KeyPrefix != "" {
-		t.Errorf("Unexpected KeyPrefix: %s", obs.KeyPrefix)
+	if obs.Bucket.KeyPrefix != "" {
+		t.Errorf("Unexpected KeyPrefix: %s", obs.Bucket.KeyPrefix)
 	}
-	if obs.SMTP.Host != "host" {
-		t.Errorf("Unexpected SMTP host: %s", obs.SMTP.Host)
+	if obs.Smtp.Host != "host" {
+		t.Errorf("Unexpected SMTP host: %s", obs.Smtp.Host)
 	}
-	if obs.SMTP.Port != 25 {
-		t.Errorf("Unexpected SMTP port: %d", obs.SMTP.Port)
+	if obs.Smtp.Port != 25 {
+		t.Errorf("Unexpected SMTP port: %d", obs.Smtp.Port)
 	}
-	if *obs.SMTP.Pass != "pass" {
-		t.Errorf("Unexpected SMTP pass: %s", *obs.SMTP.Pass)
+	if obs.Smtp.Pass != "pass" {
+		t.Errorf("Unexpected SMTP pass: %s", obs.Smtp.Pass)
 	}
-	if obs.SMTP.ConnectionTLS != false {
-		t.Errorf("Unexpected SMTP connection TLS: %t", obs.SMTP.ConnectionTLS)
+	if obs.Smtp.ConnectionTLS != false {
+		t.Errorf("Unexpected SMTP connection TLS: %t", obs.Smtp.ConnectionTLS)
 	}
-	if obs.SMTP.ForceSTARTTLS != true {
-		t.Errorf("Unexpected SMTP force STARTTLS: %t", obs.SMTP.ForceSTARTTLS)
+	if obs.Smtp.ForceSTARTTLS != true {
+		t.Errorf("Unexpected SMTP force STARTTLS: %t", obs.Smtp.ForceSTARTTLS)
 	}
-	if obs.SMTP.InsecureTLS != true {
-		t.Errorf("Unexpected SMTP insecure TLS: %t", obs.SMTP.InsecureTLS)
+	if obs.Smtp.InsecureTLS != true {
+		t.Errorf("Unexpected SMTP insecure TLS: %t", obs.Smtp.InsecureTLS)
 	}
-	if *obs.SMTP.Identity != "" {
-		t.Errorf("Unexpected SMTP identity: %s", *obs.SMTP.Identity)
+	if obs.Smtp.Identity != "" {
+		t.Errorf("Unexpected SMTP identity: %s", obs.Smtp.Identity)
 	}
-	if *obs.SMTP.MyName != "AWS-SMTP-Relay-Observer" {
-		t.Errorf("Unexpected SMTP my name: %s", *obs.SMTP.MyName)
+	if obs.Smtp.MyName != "AWS-SMTP-Relay-Observer" {
+		t.Errorf("Unexpected SMTP my name: %s", obs.Smtp.MyName)
 	}
 }
 
 func TestConfiguredSet(t *testing.T) {
 	cli := FlagCliArgs
-	cli.enableObserver = boolPtr(true)
-	cli.queueName = strPtr("queueName")
-	cli.queueS3Bucket = strPtr("bucket")
-	cli.queueS3Prefix = strPtr("prefix")
-	cli.queueSmtpHost = strPtr("host")
-	cli.queueSmtpPort = intPtr(27)
-	cli.queueSmtpConnectionTLS = boolPtr(true)
-	cli.queueSmtpForceSTARTTLS = boolPtr(false)
-	cli.queueSmtpInsecureTLS = boolPtr(false)
-	cli.queueSmtpMyName = strPtr("myName")
-	cli.queueSmtpIdentity = strPtr("identity")
+	cli.Enable = (true)
+	cli.SQS.Name = ("queueName")
+	cli.Bucket.Name = ("bucket")
+	cli.Bucket.KeyPrefix = ("prefix")
+	cli.Smtp.Host = ("host")
+	cli.Smtp.Port = (27)
+	cli.Smtp.ConnectionTLS = (true)
+	cli.Smtp.ForceSTARTTLS = (false)
+	cli.Smtp.InsecureTLS = (false)
+	cli.Smtp.MyName = ("myName")
+	cli.Smtp.Identity = ("identity")
 	os.Setenv("QUEUE_SMTP_PASS", "pass")
 	obs, err := ConfigureObserver(cli)
 	os.Unsetenv("QUEUE_SMTP_PASS")
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	if obs.QueueName != "queueName" {
-		t.Errorf("Unexpected queue name: %s", obs.QueueName)
+	if obs.SQS.Name != "queueName" {
+		t.Errorf("Unexpected queue name: %s", obs.SQS.Name)
 	}
-	if obs.Timeout != 10 {
-		t.Errorf("Unexpected timeout: %d", obs.Timeout)
+	if obs.SQS.Timeout != 10 {
+		t.Errorf("Unexpected timeout: %d", obs.SQS.Timeout)
 	}
-	if obs.MaxMessages != 10 {
-		t.Errorf("Unexpected max messages: %d", obs.MaxMessages)
+	if obs.SQS.MaxMessages != 10 {
+		t.Errorf("Unexpected max messages: %d", obs.SQS.MaxMessages)
 	}
-	if obs.Bucket != "bucket" {
-		t.Errorf("Unexpected bucket: %s", obs.Bucket)
+	if obs.Bucket.Name != "bucket" {
+		t.Errorf("Unexpected bucket: %s", obs.Bucket.Name)
 	}
-	if obs.KeyPrefix != "prefix" {
-		t.Errorf("Unexpected KeyPrefix: %s", obs.KeyPrefix)
+	if obs.Bucket.KeyPrefix != "prefix" {
+		t.Errorf("Unexpected KeyPrefix: %s", obs.Bucket.KeyPrefix)
 	}
-	if obs.SMTP.Host != "host" {
-		t.Errorf("Unexpected SMTP host: %s", obs.SMTP.Host)
+	if obs.Smtp.Host != "host" {
+		t.Errorf("Unexpected SMTP host: %s", obs.Smtp.Host)
 	}
-	if obs.SMTP.Port != 27 {
-		t.Errorf("Unexpected SMTP port: %d", obs.SMTP.Port)
+	if obs.Smtp.Port != 27 {
+		t.Errorf("Unexpected SMTP port: %d", obs.Smtp.Port)
 	}
-	if *obs.SMTP.Pass != "pass" {
-		t.Errorf("Unexpected SMTP pass: %s", *obs.SMTP.Pass)
+	if obs.Smtp.Pass != "pass" {
+		t.Errorf("Unexpected SMTP pass: %s", obs.Smtp.Pass)
 	}
-	if obs.SMTP.ConnectionTLS != true {
-		t.Errorf("Unexpected SMTP connection TLS: %t", obs.SMTP.ConnectionTLS)
+	if obs.Smtp.ConnectionTLS != true {
+		t.Errorf("Unexpected SMTP connection TLS: %t", obs.Smtp.ConnectionTLS)
 	}
-	if obs.SMTP.ForceSTARTTLS != false {
-		t.Errorf("Unexpected SMTP force STARTTLS: %t", obs.SMTP.ForceSTARTTLS)
+	if obs.Smtp.ForceSTARTTLS != false {
+		t.Errorf("Unexpected SMTP force STARTTLS: %t", obs.Smtp.ForceSTARTTLS)
 	}
-	if obs.SMTP.InsecureTLS != false {
-		t.Errorf("Unexpected SMTP insecure TLS: %t", obs.SMTP.InsecureTLS)
+	if obs.Smtp.InsecureTLS != false {
+		t.Errorf("Unexpected SMTP insecure TLS: %t", obs.Smtp.InsecureTLS)
 	}
-	if *obs.SMTP.Identity != "identity" {
-		t.Errorf("Unexpected SMTP identity: %s", *obs.SMTP.Identity)
+	if obs.Smtp.Identity != "identity" {
+		t.Errorf("Unexpected SMTP identity: %s", obs.Smtp.Identity)
 	}
-	if *obs.SMTP.MyName != "myName" {
-		t.Errorf("Unexpected SMTP my name: %s", *obs.SMTP.MyName)
+	if obs.Smtp.MyName != "myName" {
+		t.Errorf("Unexpected SMTP my name: %s", obs.Smtp.MyName)
 	}
 }
