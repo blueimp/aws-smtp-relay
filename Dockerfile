@@ -1,4 +1,4 @@
-FROM alpine as build
+FROM golang:alpine  as build
 
 FROM scratch
 
