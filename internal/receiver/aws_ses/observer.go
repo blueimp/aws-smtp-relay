@@ -118,10 +118,10 @@ func (aso *AwsSesObserver) fetchMessage(asn *AwsSesNotification) (*s3.GetObjectO
 func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOutput) (error, error) {
 	var err error
 	var c SMTPClient
-	if !aso.Config.Smtp.ConnectionTLS {
+	if !aso.Config.Smtp.ConnectionTLS() {
 		c, err = aso.Smtp.Dial(fmt.Sprintf("%s:%d", aso.Config.Smtp.Host, aso.Config.Smtp.Port))
 	} else {
-		c, err = aso.Smtp.DialTLS(fmt.Sprintf("%s:%d", aso.Config.Smtp.Host, aso.Config.Smtp.Port), &tls.Config{InsecureSkipVerify: aso.Config.Smtp.InsecureTLS})
+		c, err = aso.Smtp.DialTLS(fmt.Sprintf("%s:%d", aso.Config.Smtp.Host, aso.Config.Smtp.Port), &tls.Config{InsecureSkipVerify: aso.Config.Smtp.InsecureTLS()})
 	}
 	if err != nil {
 		return nil, err
@@ -132,8 +132,8 @@ func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOu
 	if err != nil {
 		return nil, err
 	}
-	if aso.Config.Smtp.ForceSTARTTLS {
-		err = c.StartTLS(&tls.Config{InsecureSkipVerify: aso.Config.Smtp.InsecureTLS})
+	if aso.Config.Smtp.ForceSTARTTLS() {
+		err = c.StartTLS(&tls.Config{InsecureSkipVerify: aso.Config.Smtp.InsecureTLS()})
 		if err != nil {
 			return nil, err
 		}

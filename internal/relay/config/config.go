@@ -6,24 +6,25 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/blueimp/aws-smtp-relay/internal"
 	"github.com/spf13/pflag"
 )
 
 type Config struct {
-	Addr       string
-	Name       string
-	Host       string
-	CertFile   string
-	KeyFile    string
-	StartTLS   bool
-	OnlyTLS    bool
-	RelayAPI   string
-	SetName    string
-	Ips        string
-	User       string
-	IpMap      map[string]bool
-	BcryptHash []byte
-	Password   []byte
+	Addr        string
+	Name        string
+	Host        string
+	CertFile    string
+	KeyFile     string
+	StartTLSStr string
+	OnlyTLSStr  string
+	RelayAPI    string
+	SetName     string
+	Ips         string
+	User        string
+	IpMap       map[string]bool
+	BcryptHash  []byte
+	Password    []byte
 
 	AllowFrom       string
 	AllowFromRegExp *regexp.Regexp
@@ -32,27 +33,30 @@ type Config struct {
 	// RelayClient Client
 }
 
-func initCliArgs() Config {
+func (c Config) StartTLS() bool {
+	return internal.String2bool(c.StartTLSStr)
+}
+
+func (c Config) OnlyTLS() bool {
+	return internal.String2bool(c.OnlyTLSStr)
+}
+
+func initCliArgs() *Config {
 	cfg := Config{}
 	pflag.StringVarP(&cfg.Addr, "addr", "a", ":1025", "TCP listen address")
 	pflag.StringVarP(&cfg.Name, "name", "n", "AWS SMTP Relay", "SMTP service name")
 	pflag.StringVarP(&cfg.Host, "host", "h", "", "Server hostname")
 	pflag.StringVarP(&cfg.CertFile, "certFile", "c", "", "TLS cert file")
 	pflag.StringVarP(&cfg.KeyFile, "keyFile", "k", "", "TLS key file")
-	pflag.BoolVarP(&cfg.StartTLS, "startTLS", "s", false, "Require TLS via STARTTLS extension")
-	pflag.BoolVarP(&cfg.OnlyTLS, "onlyTLS", "t", false, "Listen for incoming TLS connections only")
+	pflag.StringVarP(&cfg.StartTLSStr, "startTLS", "s", "false", "Require TLS via STARTTLS extension")
+	pflag.StringVarP(&cfg.OnlyTLSStr, "onlyTLS", "t", "false", "Listen for incoming TLS connections only")
 	pflag.StringVarP(&cfg.RelayAPI, "relayAPI", "r", "ses", "Relay API to use (ses|pinpoint)")
 	pflag.StringVarP(&cfg.SetName, "setName", "e", "", "Amazon SES Configuration Set Name")
 	pflag.StringVarP(&cfg.Ips, "ips", "i", "", "Allowed client IPs (comma-separated)")
 	pflag.StringVarP(&cfg.User, "user", "u", "", "Authentication username")
 	pflag.StringVarP(&cfg.AllowFrom, "allowFrom", "l", "", "Allowed sender emails regular expression")
 	pflag.StringVarP(&cfg.DenyTo, "denyTo", "d", "", "Denied recipient emails regular expression")
-
-	// var ipMap map[string]bool
-	// var bcryptHash []byte
-	// var password []byte
-	// var relayClient relay.Client
-	return cfg
+	return &cfg
 }
 
 var FlagCliArgs = initCliArgs()
@@ -95,12 +99,12 @@ func merge(dominator, defaults Config) Config {
 }
 
 func Configure(clis ...Config) (*Config, error) {
-	incli := FlagCliArgs
+	incli := *FlagCliArgs
 	if len(clis) != 0 {
 		incli = clis[0]
 	}
 	// own copy
-	cli := merge(incli, FlagCliArgs)
+	cli := merge(incli, *FlagCliArgs)
 
 	var err error
 	if cli.AllowFrom != "" {

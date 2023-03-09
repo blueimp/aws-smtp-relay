@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"os"
+
+	"github.com/blueimp/aws-smtp-relay/internal"
 )
 
 type ConfigSQS struct {
@@ -16,33 +18,47 @@ type ConfigBucket struct {
 	KeyPrefix string
 }
 type ConfigSmtp struct {
-	Host          string
-	Port          int
-	ConnectionTLS bool
-	ForceSTARTTLS bool
-	InsecureTLS   bool
-	Identity      string
-	User          string
-	Pass          string
-	MyName        string
+	Host             string
+	Port             int
+	ConnectionTLSStr string
+	ForceSTARTTLSStr string
+	InsecureTLSStr   string
+	Identity         string
+	User             string
+	Pass             string
+	MyName           string
+}
+
+func (c ConfigSmtp) ConnectionTLS() bool {
+	return internal.String2bool(c.ConnectionTLSStr)
+}
+func (c ConfigSmtp) ForceSTARTTLS() bool {
+	return internal.String2bool(c.ForceSTARTTLSStr)
+}
+func (c ConfigSmtp) InsecureTLS() bool {
+	return internal.String2bool(c.InsecureTLSStr)
 }
 
 type Config struct {
-	Enable  bool
-	Context context.Context
-	SQS     ConfigSQS
-	Bucket  ConfigBucket
-	Smtp    ConfigSmtp
+	EnableStr string
+	Context   context.Context
+	SQS       ConfigSQS
+	Bucket    ConfigBucket
+	Smtp      ConfigSmtp
+}
+
+func (c Config) Enable() bool {
+	return internal.String2bool(c.EnableStr)
 }
 
 func ConfigureObserver(clis ...Config) (*Config, error) {
 	incli := FlagCliArgs
 	if len(clis) != 0 {
-		incli = clis[0]
+		incli = &clis[0]
 	}
 	// own copy
-	cli := incli
-	if !cli.Enable {
+	cli := *incli
+	if !cli.Enable() {
 		return nil, nil
 	}
 	if cli.Context == nil {

@@ -1,14 +1,32 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	receiver "github.com/blueimp/aws-smtp-relay/internal/receiver/aws_ses"
 	"github.com/blueimp/aws-smtp-relay/internal/relay"
 	"github.com/blueimp/aws-smtp-relay/internal/relay/config"
 	"github.com/spf13/pflag"
 )
+
+func dumpCfg(cfg *config.Config, observeCfg *receiver.Config) {
+	entry := struct {
+		Time        time.Time
+		Component   string
+		Cfg         interface{}
+		ObserverCfg interface{}
+	}{
+		Time:        time.Now().UTC(),
+		Component:   "aws-smtp-relay",
+		Cfg:         cfg,
+		ObserverCfg: observeCfg,
+	}
+	b, _ := json.Marshal(entry)
+	fmt.Println(string(b))
+}
 
 func main() {
 	pflag.Parse()
@@ -22,6 +40,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+
+	dumpCfg(cfg, observeCfg)
 
 	if observeCfg != nil {
 		go func() {
