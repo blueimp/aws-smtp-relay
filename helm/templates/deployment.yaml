@@ -73,7 +73,7 @@ spec:
             - "{{ ternary "true" "false" .Values.awsSmtpRelay.relay.startTLS }}"
             - "--onlyTLS"
             - "{{ ternary "true" "false"  .Values.awsSmtpRelay.relay.onlyTLS }}"
-            - "-relayAPI"
+            - "--relayAPI"
             - {{ .Values.awsSmtpRelay.relay.relayAPI }}
             - "--setName"
             - {{ .Values.awsSmtpRelay.relay.setName }}
@@ -86,8 +86,8 @@ spec:
             - "--denyTo"
             - {{ .Values.awsSmtpRelay.relay.denyTo }}
           env:
-            - value: AWS_REGION
-              name: {{ .Values.awsSmtpRelay.region }}
+            - name: AWS_REGION
+              value: {{ .Values.awsSmtpRelay.region }}
             {{- with .Values.awsSmtpRelay.env }}
             {{ . | toYaml | nindent 12 }}
             {{- end }}
