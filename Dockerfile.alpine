@@ -1,0 +1,6 @@
+FROM golang:alpine
+
+COPY ./aws-smtp-relay /bin/
+
+ENTRYPOINT ["aws-smtp-relay"]
+
