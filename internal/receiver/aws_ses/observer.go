@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/smtp"
@@ -115,7 +114,7 @@ func (aso *AwsSesObserver) fetchMessage(asn *AwsSesNotification) (*s3.GetObjectO
 	return out, err
 }
 
-func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOutput) (error, error) {
+func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOutput) ([]string, bool, error) {
 	var err error
 	var c SMTPClient
 	if !aso.Config.Smtp.ConnectionTLS() {
@@ -124,18 +123,18 @@ func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOu
 		c, err = aso.Smtp.DialTLS(fmt.Sprintf("%s:%d", aso.Config.Smtp.Host, aso.Config.Smtp.Port), &tls.Config{InsecureSkipVerify: aso.Config.Smtp.InsecureTLS()})
 	}
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	defer c.Close()
 	myName := aso.Config.Smtp.MyName
 	err = c.Hello(myName)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	if aso.Config.Smtp.ForceSTARTTLS() {
 		err = c.StartTLS(&tls.Config{InsecureSkipVerify: aso.Config.Smtp.InsecureTLS()})
 		if err != nil {
-			return nil, err
+			return nil, true, err
 		}
 	}
 	if aso.Config.Smtp.User != "" && aso.Config.Smtp.Pass != "" {
@@ -144,37 +143,37 @@ func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOu
 		auth := smtp.CRAMMD5Auth(aso.Config.Smtp.User, aso.Config.Smtp.Pass)
 		err = c.Auth(auth)
 		if err != nil {
-			return nil, err
+			return nil, true, err
 		}
 	}
 
 	if err = c.Mail(asn.Mail.CommonHeaders.From[0]); err != nil {
-		return err, nil
+		return nil, true, err
 	}
-	rcptCnt := 0
+	rcpt := make([]string, 0)
 	for _, addr := range asn.Receipt.Recipients {
 		if err = c.Rcpt(addr); err == nil {
-			rcptCnt++
+			rcpt = append(rcpt, addr)
 		}
 	}
-	if rcptCnt == 0 {
-		return errors.New("no valid recipients"), nil
+	if len(rcpt) == 0 {
+		return rcpt, false, fmt.Errorf("no valid recipients")
 	}
 	w, err := c.Data()
 	if err != nil {
-		return nil, err
+		return rcpt, true, err
 	}
 
 	_, err = io.Copy(w, out.Body)
 	if err != nil {
-		return nil, err
+		return rcpt, true, err
 	}
 
 	err = w.Close()
 	if err != nil {
-		return nil, err
+		return rcpt, true, err
 	}
-	return c.Quit(), nil
+	return rcpt, false, c.Quit()
 }
 
 func (aso *AwsSesObserver) deleteMessage(asn *AwsSesNotification, msg *sqsTypes.Message) error {
@@ -221,15 +220,16 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 	var err error
 	Log("sqs/observe", "start observing %d messages", cnt)
 	for i := 0; cnt < 0 || i < cnt; i++ {
-		var sqs SQSClient
-		sqs, err = aso.getSqsClient(false)
+		var sqsClient SQSClient
+		sqsClient, err = aso.getSqsClient(false)
 		if err != nil {
 			err = LogError("sqs/getSqsClient", err.Error())
 			time.Sleep(1000 * time.Millisecond)
 			aso.getSqsClient(true)
 			continue
 		}
-		msgResult, err := sqs.ReceiveMessage(aso.Config.Context, &aso.SQS.MsgInputParams)
+		var msgResult *sqs.ReceiveMessageOutput
+		msgResult, err = sqsClient.ReceiveMessage(aso.Config.Context, &aso.SQS.MsgInputParams)
 		if err != nil {
 			err = LogError("sqs/receive", "error receiving messages, %v", err.Error())
 			time.Sleep(1000 * time.Millisecond)
@@ -254,22 +254,31 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 					}
 					out, err := aso.fetchMessage(&asn)
 					if err != nil {
-						err = LogError("aso/fetchMessage", err.Error())
+						err = LogError("aso/fetchMessage: msg=%v err=%v", asn.Mail.MessageId, err.Error())
 						continue
 					}
-					warn, err := aso.sendMail(&asn, out)
-					if warn != nil {
-						LogError("aso/sendMail", "warn=%v msg=%s to=%v", warn.Error(), asn.Mail.MessageId, asn.Mail.CommonHeaders.To)
-					}
-					if err != nil {
-						err = LogError("aso/sendMail", "err=%v msg=%s to=%v", err.Error(), asn.Mail.MessageId, asn.Mail.CommonHeaders.To)
+					var retry bool
+					var rcpt []string
+					rcpt, retry, err = aso.sendMail(&asn, out)
+					if !retry && err != nil {
+						// abort send if error is not retryable
+						LogError("aso/sendMail", "msg=%s warn=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), asn.Mail.CommonHeaders.From, asn.Mail.CommonHeaders.To)
 					} else {
-						Log("smtp/sendMail", "sent msg=%s to=%v", asn.Mail.MessageId, asn.Mail.CommonHeaders.To)
+						if err != nil {
+							// retryable error
+							err = LogError("aso/sendMail", "msg=%s err=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), asn.Mail.CommonHeaders.From, rcpt)
+						} else {
+							// all good
+							Log("smtp/sendMail", "sent msg=%s from=%v to=%v", asn.Mail.MessageId, asn.Mail.CommonHeaders.From, rcpt)
+						}
 					}
-					err = aso.deleteMessage(&asn, &msg)
-					if err != nil {
-						err = LogError("sqs/deleteMessage", err.Error())
-						continue
+					if !retry {
+						// delete message from queue if not retryable
+						err = aso.deleteMessage(&asn, &msg)
+						if err != nil {
+							err = LogError("sqs/deleteMessage: err=%v msg=%v", err.Error(), asn.Mail.MessageId)
+							continue
+						}
 					}
 				} else {
 					err = LogError("AwsSesMessage", "unknown message type, %s", asm.Type)
