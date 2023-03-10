@@ -10,6 +10,7 @@ func initCliArgs() *Config {
 	pflag.StringVar(&ret.SQS.Name, "SES.SQS.Name", "", "Observer AWS SQS Queue Name")
 	pflag.IntVar(&ret.SQS.Timeout, "SES.SQS.Timeout", 10, "Observer AWS SQS Queue Timeout")
 	pflag.IntVar(&ret.SQS.MaxMessages, "SES.SQS.MaxMessages", 10, "Observer AWS SQS Queue MaxMessages")
+	pflag.IntVar(&ret.SQS.WaitTime, "SES.SQS.WaitTime", 10, "Observer AWS SQS Queue WaitTime")
 	pflag.StringVar(&ret.Bucket.Name, "SES.Bucket.Name", "", "Observer AWS SQS Queue S3 Bucket")
 	pflag.StringVar(&ret.Bucket.KeyPrefix, "SES.Bucket.KeyPrefix", "", "Observer AWS S3 Key Prefix")
 	pflag.StringVar(&ret.Smtp.Host, "SES.Smtp.Host", "", "Observer Relay SMTP Host")

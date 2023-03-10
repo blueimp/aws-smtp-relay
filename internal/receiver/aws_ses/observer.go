@@ -72,6 +72,7 @@ func (aso *AwsSesObserver) InitSQS() error {
 		},
 		QueueUrl:            aso.SQS.SQSQueueURL,
 		MaxNumberOfMessages: int32(aso.Config.SQS.MaxMessages),
+		WaitTimeSeconds:     int32(aso.Config.SQS.WaitTime),
 		VisibilityTimeout:   int32(aso.Config.SQS.Timeout),
 	}
 	return nil
@@ -224,7 +225,7 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 		sqsClient, err = aso.getSqsClient(false)
 		if err != nil {
 			err = LogError("sqs/getSqsClient", err.Error())
-			time.Sleep(1000 * time.Millisecond)
+			time.Sleep(1 * time.Second)
 			aso.getSqsClient(true)
 			continue
 		}
@@ -232,7 +233,7 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 		msgResult, err = sqsClient.ReceiveMessage(aso.Config.Context, &aso.SQS.MsgInputParams)
 		if err != nil {
 			err = LogError("sqs/receive", "error receiving messages, %v", err.Error())
-			time.Sleep(1000 * time.Millisecond)
+			time.Sleep(1 * time.Second)
 			aso.getSqsClient(true)
 			continue
 		}

@@ -12,6 +12,7 @@ type ConfigSQS struct {
 	Name        string
 	Timeout     int
 	MaxMessages int
+	WaitTime    int
 }
 type ConfigBucket struct {
 	Name      string
