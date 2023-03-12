@@ -122,6 +122,14 @@ func stringPtr(s string) *string {
 
 var re500er = regexp.MustCompile(`^5\d\d\s`)
 
+func retry(err error) bool {
+	retry := true
+	if re500er.MatchString(err.Error()) {
+		retry = false
+	}
+	return retry
+}
+
 func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOutput) ([]string, bool, error, *string) {
 	var err error
 	var c SMTPClient
@@ -156,11 +164,8 @@ func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOu
 	}
 
 	if err = c.Mail(asn.Mail.CommonHeaders.From[0]); err != nil {
-		retry := true
-		if re500er.MatchString(err.Error()) {
-			retry = false
-		}
-		return nil, retry, err, stringPtr("Mail")
+
+		return nil, retry(err), err, stringPtr("Mail")
 	}
 	rcpt := make([]string, 0)
 	for _, addr := range asn.Receipt.Recipients {
@@ -173,17 +178,17 @@ func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOu
 	}
 	w, err := c.Data()
 	if err != nil {
-		return rcpt, true, err, stringPtr("Data")
+		return rcpt, retry(err), err, stringPtr("Data")
 	}
 
 	_, err = io.Copy(w, out.Body)
 	if err != nil {
-		return rcpt, true, err, stringPtr("Copy")
+		return rcpt, retry(err), err, stringPtr("Copy")
 	}
 
 	err = w.Close()
 	if err != nil {
-		return rcpt, true, err, stringPtr("Close")
+		return rcpt, retry(err), err, stringPtr("Close")
 	}
 	return rcpt, false, c.Quit(), stringPtr("Quit")
 }
@@ -279,7 +284,7 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 					}
 					if !retry && err != nil {
 						// abort send if error is not retryable
-						LogError(mailComponent, "msg=%s warn=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), asn.Mail.CommonHeaders.From, asn.Mail.CommonHeaders.To)
+						LogError(mailComponent, "msg=%s abort=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), asn.Mail.CommonHeaders.From, asn.Mail.CommonHeaders.To)
 					} else {
 						if err != nil {
 							// retryable error
