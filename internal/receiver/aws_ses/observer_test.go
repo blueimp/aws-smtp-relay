@@ -71,7 +71,8 @@ func (m *mockS3Client) DeleteObject(ctx context.Context, params *s3.DeleteObject
 }
 
 type mockSMTPClient struct {
-	buf bytes.Buffer
+	buf     bytes.Buffer
+	mailErr error
 }
 
 func (sc *mockSMTPClient) Close() error {
@@ -109,6 +110,9 @@ func (sc *mockSMTPClient) Auth(a smtp.Auth) error {
 func (sc *mockSMTPClient) Mail(from string) error {
 	if from == "Meno Abels <from@smtp.world>" {
 		return nil
+	}
+	if sc.mailErr != nil {
+		return sc.mailErr
 	}
 	return fmt.Errorf("mail error")
 }
@@ -174,11 +178,12 @@ func (sc *mockSMTPClient) SendMail(from string, to []string, msg io.Reader) erro
 }
 
 type mockSMTP struct {
+	smtpClient SMTPClient
 }
 
 func (s *mockSMTP) Dial(addr string) (SMTPClient, error) {
 	if addr == "host:25" {
-		return &mockSMTPClient{}, nil
+		return s.smtpClient, nil
 		// return &mockSMPClient
 	}
 	return nil, fmt.Errorf("dial error")
@@ -186,7 +191,7 @@ func (s *mockSMTP) Dial(addr string) (SMTPClient, error) {
 
 func (s *mockSMTP) DialTLS(addr string, tls *tls.Config) (SMTPClient, error) {
 	if addr == "host:25" {
-		return &mockSMTPClient{}, nil
+		return s.smtpClient, nil
 		// return &mockSMPClient
 	}
 	return nil, fmt.Errorf("dial error")
@@ -300,6 +305,74 @@ func TestSendMailFailedButOk(t *testing.T) {
 		t.Error("Unexpected retry")
 	}
 	if err == nil {
+		t.Error("Expected no error", err)
+	}
+}
+
+func TestSendMailFailed500er(t *testing.T) {
+	cli := *FlagCliArgs
+	cli.EnableStr = "true"
+	cli.SQS.Name = "testQ"
+	cli.Bucket.Name = "bucket"
+	cli.Bucket.KeyPrefix = "prefix/"
+	cli.Smtp.Host = "host"
+	cli.Smtp.Identity = "identity"
+	cli.Smtp.User = "user"
+	cli.Smtp.Pass = "pass"
+	cfg, err := ConfigureObserver(cli)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	obs, err := mockNewAWSSESObserver(cfg)
+	if err != nil {
+		t.Error(err)
+	}
+	asn := setupAsn(obs)
+	asn.Mail.CommonHeaders.From = []string{
+		"kaputt@smtp.world",
+	}
+	obs.Smtp.(*mockSMTP).smtpClient = &mockSMTPClient{
+		mailErr: fmt.Errorf("543 5.7.1 fake error"),
+	}
+	_, retry, err, _ := obs.sendMail(asn, s3GetObjectOutput("testBody"))
+	if retry {
+		t.Error("Unexpected retry")
+	}
+	if err.Error() != "543 5.7.1 fake error" {
+		t.Error("Expected no error", err)
+	}
+}
+
+func TestSendMailFailed400er(t *testing.T) {
+	cli := *FlagCliArgs
+	cli.EnableStr = "true"
+	cli.SQS.Name = "testQ"
+	cli.Bucket.Name = "bucket"
+	cli.Bucket.KeyPrefix = "prefix/"
+	cli.Smtp.Host = "host"
+	cli.Smtp.Identity = "identity"
+	cli.Smtp.User = "user"
+	cli.Smtp.Pass = "pass"
+	cfg, err := ConfigureObserver(cli)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	obs, err := mockNewAWSSESObserver(cfg)
+	if err != nil {
+		t.Error(err)
+	}
+	asn := setupAsn(obs)
+	asn.Mail.CommonHeaders.From = []string{
+		"kaputt@smtp.world",
+	}
+	obs.Smtp.(*mockSMTP).smtpClient = &mockSMTPClient{
+		mailErr: fmt.Errorf("443 5.7.1 fake error"),
+	}
+	_, retry, err, _ := obs.sendMail(asn, s3GetObjectOutput("testBody"))
+	if !retry {
+		t.Error("Unexpected retry")
+	}
+	if err.Error() != "443 5.7.1 fake error" {
 		t.Error("Expected no error", err)
 	}
 }
