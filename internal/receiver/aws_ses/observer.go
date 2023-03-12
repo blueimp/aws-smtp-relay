@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/smtp"
+	"regexp"
 	"strings"
 	"time"
 
@@ -115,7 +116,13 @@ func (aso *AwsSesObserver) fetchMessage(asn *AwsSesNotification) (*s3.GetObjectO
 	return out, err
 }
 
-func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOutput) ([]string, bool, error) {
+func stringPtr(s string) *string {
+	return &s
+}
+
+var re500er = regexp.MustCompile(`^5\d\d\s`)
+
+func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOutput) ([]string, bool, error, *string) {
 	var err error
 	var c SMTPClient
 	if !aso.Config.Smtp.ConnectionTLS() {
@@ -124,18 +131,18 @@ func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOu
 		c, err = aso.Smtp.DialTLS(fmt.Sprintf("%s:%d", aso.Config.Smtp.Host, aso.Config.Smtp.Port), &tls.Config{InsecureSkipVerify: aso.Config.Smtp.InsecureTLS()})
 	}
 	if err != nil {
-		return nil, true, err
+		return nil, true, err, stringPtr("Dial")
 	}
 	defer c.Close()
 	myName := aso.Config.Smtp.MyName
 	err = c.Hello(myName)
 	if err != nil {
-		return nil, true, err
+		return nil, true, err, stringPtr("Hello")
 	}
 	if aso.Config.Smtp.ForceSTARTTLS() {
 		err = c.StartTLS(&tls.Config{InsecureSkipVerify: aso.Config.Smtp.InsecureTLS()})
 		if err != nil {
-			return nil, true, err
+			return nil, true, err, stringPtr("StartTLS")
 		}
 	}
 	if aso.Config.Smtp.User != "" && aso.Config.Smtp.Pass != "" {
@@ -144,12 +151,16 @@ func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOu
 		auth := smtp.CRAMMD5Auth(aso.Config.Smtp.User, aso.Config.Smtp.Pass)
 		err = c.Auth(auth)
 		if err != nil {
-			return nil, true, err
+			return nil, true, err, stringPtr("Auth")
 		}
 	}
 
 	if err = c.Mail(asn.Mail.CommonHeaders.From[0]); err != nil {
-		return nil, true, err
+		retry := true
+		if re500er.MatchString(err.Error()) {
+			retry = false
+		}
+		return nil, retry, err, stringPtr("Mail")
 	}
 	rcpt := make([]string, 0)
 	for _, addr := range asn.Receipt.Recipients {
@@ -158,23 +169,23 @@ func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOu
 		}
 	}
 	if len(rcpt) == 0 {
-		return rcpt, false, fmt.Errorf("no valid recipients")
+		return rcpt, false, fmt.Errorf("no valid recipients"), stringPtr("Rcpt")
 	}
 	w, err := c.Data()
 	if err != nil {
-		return rcpt, true, err
+		return rcpt, true, err, stringPtr("Data")
 	}
 
 	_, err = io.Copy(w, out.Body)
 	if err != nil {
-		return rcpt, true, err
+		return rcpt, true, err, stringPtr("Copy")
 	}
 
 	err = w.Close()
 	if err != nil {
-		return rcpt, true, err
+		return rcpt, true, err, stringPtr("Close")
 	}
-	return rcpt, false, c.Quit()
+	return rcpt, false, c.Quit(), stringPtr("Quit")
 }
 
 func (aso *AwsSesObserver) deleteMessage(asn *AwsSesNotification, msg *sqsTypes.Message) error {
@@ -260,17 +271,22 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 					}
 					var retry bool
 					var rcpt []string
-					rcpt, retry, err = aso.sendMail(&asn, out)
+					var component *string
+					rcpt, retry, err, component = aso.sendMail(&asn, out)
+					mailComponent := "aso/Sendmail"
+					if err != nil {
+						mailComponent = fmt.Sprintf("%s/%s", mailComponent, *component)
+					}
 					if !retry && err != nil {
 						// abort send if error is not retryable
-						LogError("aso/sendMail", "msg=%s warn=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), asn.Mail.CommonHeaders.From, asn.Mail.CommonHeaders.To)
+						LogError(mailComponent, "msg=%s warn=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), asn.Mail.CommonHeaders.From, asn.Mail.CommonHeaders.To)
 					} else {
 						if err != nil {
 							// retryable error
-							err = LogError("aso/sendMail", "msg=%s err=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), asn.Mail.CommonHeaders.From, rcpt)
+							err = LogError(mailComponent, "msg=%s err=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), asn.Mail.CommonHeaders.From, rcpt)
 						} else {
 							// all good
-							Log("smtp/sendMail", "sent msg=%s from=%v to=%v", asn.Mail.MessageId, asn.Mail.CommonHeaders.From, rcpt)
+							Log(mailComponent, "sent msg=%s from=%v to=%v", asn.Mail.MessageId, asn.Mail.CommonHeaders.From, rcpt)
 						}
 					}
 					if !retry {

@@ -30,6 +30,7 @@ awsSmtpRelay:
       name: ""
       timeout: 10
       maxMessages: 10
+      waitTime: 10
     bucket:
       name: ""
       keyPrefix: ""

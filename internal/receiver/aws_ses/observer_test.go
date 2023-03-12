@@ -255,7 +255,7 @@ func TestSendMailOK(t *testing.T) {
 		"to@smtp.world",
 		"kaputt@smtp.world",
 	}
-	rcpt, retry, err := obs.sendMail(asn, s3GetObjectOutput("testBody"))
+	rcpt, retry, err, _ := obs.sendMail(asn, s3GetObjectOutput("testBody"))
 	if len(rcpt) != 1 {
 		t.Errorf("Expected 1 recipient, got %d", len(rcpt))
 	}
@@ -292,7 +292,7 @@ func TestSendMailFailedButOk(t *testing.T) {
 	asn.Receipt.Recipients = []string{
 		"kaputt@smtp.world",
 	}
-	rcpt, retry, err := obs.sendMail(asn, s3GetObjectOutput("testBody"))
+	rcpt, retry, err, _ := obs.sendMail(asn, s3GetObjectOutput("testBody"))
 	if len(rcpt) != 0 {
 		t.Errorf("Expected 0 recipient, got %d", len(rcpt))
 	}

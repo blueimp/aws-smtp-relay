@@ -41,6 +41,8 @@ spec:
             - {{ .Values.awsSmtpRelay.observer.SQS.name }}
             - "--SES.SQS.Timeout"
             - "{{ .Values.awsSmtpRelay.observer.SQS.timeout }}"
+            - "--SES.SQS.WaitTime"
+            - "{{ .Values.awsSmtpRelay.observer.sqs.waittime }}"
             - "--SES.Smtp.Host"
             - {{ .Values.awsSmtpRelay.observer.smtp.host }}
             - "--SES.Smtp.Port"
