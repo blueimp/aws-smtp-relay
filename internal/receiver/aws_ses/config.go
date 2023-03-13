@@ -41,11 +41,13 @@ func (c ConfigSmtp) InsecureTLS() bool {
 }
 
 type Config struct {
-	EnableStr string
-	Context   context.Context
-	SQS       ConfigSQS
-	Bucket    ConfigBucket
-	Smtp      ConfigSmtp
+	EnableStr         string
+	Context           context.Context
+	SQS               ConfigSQS
+	Bucket            ConfigBucket
+	Smtp              ConfigSmtp
+	RetryCount        int
+	RetryDelaySeconds int
 }
 
 func (c Config) Enable() bool {

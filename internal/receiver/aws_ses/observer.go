@@ -15,7 +15,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/google/uuid"
 )
+
+type RetryAwsSesNotification struct {
+	AwsSesNotification
+	RetryCount int
+}
 
 type AwsSesObserver struct {
 	SQS struct {
@@ -89,12 +95,12 @@ func NewAWSSESObserver(cfg *Config) (*AwsSesObserver, error) {
 	}, nil
 }
 
-func (aso *AwsSesObserver) getS3Key(asn *AwsSesNotification) *string {
+func (aso *AwsSesObserver) getS3Key(asn *RetryAwsSesNotification) *string {
 	my := strings.Join([]string{aso.Config.Bucket.KeyPrefix, asn.Mail.MessageId}, "")
 	return &my
 }
 
-func (aso *AwsSesObserver) fetchMessage(asn *AwsSesNotification) (*s3.GetObjectOutput, error) {
+func (aso *AwsSesObserver) fetchMessage(asn *RetryAwsSesNotification) (*s3.GetObjectOutput, error) {
 	var err error
 	var out *s3.GetObjectOutput
 	for i := 0; i < 2; i++ {
@@ -130,7 +136,7 @@ func retry(err error) bool {
 	return retry
 }
 
-func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOutput) ([]string, bool, error, *string) {
+func (aso *AwsSesObserver) sendMail(asn *RetryAwsSesNotification, out *s3.GetObjectOutput) ([]string, bool, error, *string) {
 	var err error
 	var c SMTPClient
 	if !aso.Config.Smtp.ConnectionTLS() {
@@ -164,7 +170,6 @@ func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOu
 	}
 
 	if err = c.Mail(asn.Mail.CommonHeaders.From[0]); err != nil {
-
 		return nil, retry(err), err, stringPtr("Mail")
 	}
 	rcpt := make([]string, 0)
@@ -193,7 +198,7 @@ func (aso *AwsSesObserver) sendMail(asn *AwsSesNotification, out *s3.GetObjectOu
 	return rcpt, false, c.Quit(), stringPtr("Quit")
 }
 
-func (aso *AwsSesObserver) deleteMessage(asn *AwsSesNotification, msg *sqsTypes.Message) error {
+func (aso *AwsSesObserver) deleteMessage(asn *RetryAwsSesNotification, msg *sqsTypes.Message) error {
 	var err error
 	for i := 0; i < 2; i++ {
 		client, err := aso.getSqsClient(i > 0)
@@ -225,6 +230,32 @@ func (aso *AwsSesObserver) deleteMessage(asn *AwsSesNotification, msg *sqsTypes.
 			continue
 		}
 		break
+	}
+	return err
+}
+
+func (aso *AwsSesObserver) sendRetryMessage(asm *AwsSesMessage, asn *RetryAwsSesNotification) error {
+	var err error
+	if aso.Config.RetryCount > 0 && asn.RetryCount+1 < aso.Config.RetryCount {
+		asn.RetryCount++
+		var jsonByte []byte
+		jsonByte, err = json.Marshal(asn)
+		if err != nil {
+			return err
+		}
+		next := *asm
+		next.Message = string(jsonByte)
+		next.MessageId = uuid.New().String()
+		next.Timestamp = time.Now().Format(time.RFC3339)
+		jsonByte, err = json.Marshal(next)
+		if err != nil {
+			return err
+		}
+		_, err = aso.SQS.Client.SendMessage(aso.Config.Context, &sqs.SendMessageInput{
+			MessageBody:  stringPtr(string(jsonByte)),
+			QueueUrl:     aso.SQS.SQSQueueURL,
+			DelaySeconds: int32(aso.Config.RetryDelaySeconds),
+		})
 	}
 	return err
 }
@@ -263,15 +294,23 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 					continue
 				}
 				if asm.Type == "Notification" {
-					asn := AwsSesNotification{}
+					asn := RetryAwsSesNotification{}
 					err = json.Unmarshal([]byte(asm.Message), &asn)
 					if err != nil {
 						err = LogError("json/AwsSesNotification", err.Error())
+						errx := aso.deleteMessage(&asn, &msg)
+						if errx != nil {
+							LogError("json/AwsSesNotification/delete", errx.Error())
+						}
 						continue
 					}
 					out, err := aso.fetchMessage(&asn)
 					if err != nil {
 						err = LogError("aso/fetchMessage: msg=%v err=%v", asn.Mail.MessageId, err.Error())
+						errx := aso.deleteMessage(&asn, &msg)
+						if errx != nil {
+							LogError("json/fetchMessage/delete", errx.Error())
+						}
 						continue
 					}
 					var retry bool
@@ -293,6 +332,14 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 							// all good
 							Log(mailComponent, "sent msg=%s from=%v to=%v", asn.Mail.MessageId, asn.Mail.CommonHeaders.From, rcpt)
 						}
+					}
+					if retry {
+						err = aso.sendRetryMessage(&asm, &asn)
+						if err != nil {
+							LogError("sqs/sendRetryMessage", "err=%v msg=%v", err.Error(), asn.Mail.MessageId)
+						}
+						// delete message from queue if retry is queued
+						retry = false
 					}
 					if !retry {
 						// delete message from queue if not retryable

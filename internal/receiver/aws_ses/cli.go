@@ -7,6 +7,8 @@ import (
 func initCliArgs() *Config {
 	ret := Config{}
 	pflag.StringVar(&ret.EnableStr, "SES.ObserverEnable", "false", "Enable AWS SES Observer")
+	pflag.IntVar(&ret.RetryCount, "SES.RetryCount", 3, "Retry Count for AWS SES Observer")
+	pflag.IntVar(&ret.RetryDelaySeconds, "SES.RetryDelaySeconds", 10*60, "Retry Delay Seconds for AWS SES Observer")
 	pflag.StringVar(&ret.SQS.Name, "SES.SQS.Name", "", "Observer AWS SQS Queue Name")
 	pflag.IntVar(&ret.SQS.Timeout, "SES.SQS.Timeout", 10, "Observer AWS SQS Queue Timeout")
 	pflag.IntVar(&ret.SQS.MaxMessages, "SES.SQS.MaxMessages", 10, "Observer AWS SQS Queue MaxMessages")

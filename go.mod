@@ -33,5 +33,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.5
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.4
 	github.com/aws/smithy-go v1.13.5 // indirect
+	github.com/google/uuid v1.3.0
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 )
