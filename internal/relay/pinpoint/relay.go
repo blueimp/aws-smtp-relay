@@ -1,18 +1,23 @@
-package relay
+package pinpoint
 
 import (
+	"context"
 	"net"
 	"regexp"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/pinpointemail"
-	"github.com/aws/aws-sdk-go/service/pinpointemail/pinpointemailiface"
-	"github.com/blueimp/aws-smtp-relay/internal/relay"
+	"github.com/aws/aws-sdk-go-v2/service/pinpointemail"
+	pinpointemailtypes "github.com/aws/aws-sdk-go-v2/service/pinpointemail/types"
+	"github.com/blueimp/aws-smtp-relay/internal"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/filter"
 )
+
+type PinpointEmailClient interface {
+	SendEmail(context.Context, *pinpointemail.SendEmailInput, ...func(*pinpointemail.Options)) (*pinpointemail.SendEmailOutput, error)
+}
 
 // Client implements the Relay interface.
 type Client struct {
-	pinpointAPI     pinpointemailiface.PinpointEmailAPI
+	pinpointClient  PinpointEmailClient
 	setName         *string
 	allowFromRegExp *regexp.Regexp
 	denyToRegExp    *regexp.Regexp
@@ -25,29 +30,26 @@ func (c Client) Send(
 	to []string,
 	data []byte,
 ) error {
-	allowedRecipients, deniedRecipients, err := relay.FilterAddresses(
+	allowedRecipients, deniedRecipients, err := filter.FilterAddresses(
 		from,
 		to,
 		c.allowFromRegExp,
 		c.denyToRegExp,
 	)
 	if err != nil {
-		relay.Log(origin, &from, deniedRecipients, err)
+		internal.Log(origin, from, deniedRecipients, err)
 	}
 	if len(allowedRecipients) > 0 {
-		_, err := c.pinpointAPI.SendEmail(&pinpointemail.SendEmailInput{
-			ConfigurationSetName: c.setName,
-			FromEmailAddress:     &from,
-			Destination: &pinpointemail.Destination{
-				ToAddresses: allowedRecipients,
-			},
-			Content: &pinpointemail.EmailContent{
-				Raw: &pinpointemail.RawMessage{
-					Data: data,
-				},
-			},
+		_, err := c.pinpointClient.SendEmail(context.Background(), &pinpointemail.SendEmailInput{
+			Content:                        &pinpointemailtypes.EmailContent{Raw: &pinpointemailtypes.RawMessage{Data: data}},
+			Destination:                    &pinpointemailtypes.Destination{ToAddresses: allowedRecipients},
+			ConfigurationSetName:           c.setName,
+			EmailTags:                      []pinpointemailtypes.MessageTag{},
+			FeedbackForwardingEmailAddress: new(string),
+			FromEmailAddress:               &from,
+			ReplyToAddresses:               to,
 		})
-		relay.Log(origin, &from, allowedRecipients, err)
+		internal.Log(origin, from, allowedRecipients, err)
 		if err != nil {
 			return err
 		}
@@ -62,7 +64,7 @@ func New(
 	denyToRegExp *regexp.Regexp,
 ) Client {
 	return Client{
-		pinpointAPI:     pinpointemail.New(session.Must(session.NewSession())),
+		pinpointClient:  pinpointemail.New(pinpointemail.Options{}),
 		setName:         configurationSetName,
 		allowFromRegExp: allowFromRegExp,
 		denyToRegExp:    denyToRegExp,

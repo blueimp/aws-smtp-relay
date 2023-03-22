@@ -1,16 +1,17 @@
-package relay
+package pinpoint
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"net"
 	"os"
+	"reflect"
 	"regexp"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/service/pinpointemail"
-	"github.com/aws/aws-sdk-go/service/pinpointemail/pinpointemailiface"
-	"github.com/blueimp/aws-smtp-relay/internal/relay"
+	"github.com/aws/aws-sdk-go-v2/service/pinpointemail"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/filter"
 )
 
 var testData = struct {
@@ -19,18 +20,12 @@ var testData = struct {
 }{}
 
 type mockPinpointEmailClient struct {
-	pinpointemailiface.PinpointEmailAPI
-}
-
-func (m *mockPinpointEmailClient) CreateConfigurationSet(
-	input *pinpointemail.CreateConfigurationSetInput,
-) (*pinpointemail.CreateConfigurationSetOutput, error) {
-	return &pinpointemail.CreateConfigurationSetOutput{}, nil
 }
 
 func (m *mockPinpointEmailClient) SendEmail(
+	context context.Context,
 	input *pinpointemail.SendEmailInput,
-) (*pinpointemail.SendEmailOutput, error) {
+	fns ...func(*pinpointemail.Options)) (*pinpointemail.SendEmailOutput, error) {
 	testData.input = input
 	return nil, testData.err
 }
@@ -59,7 +54,7 @@ func sendHelper(
 	os.Stderr = errWriter
 	func() {
 		c := Client{
-			pinpointAPI:     &mockPinpointEmailClient{},
+			pinpointClient:  &mockPinpointEmailClient{},
 			setName:         configurationSetName,
 			allowFromRegExp: allowFromRegExp,
 			denyToRegExp:    denyToRegExp,
@@ -95,10 +90,10 @@ func TestSend(t *testing.T) {
 			1,
 		)
 	}
-	if *input.Destination.ToAddresses[0] != to[0] {
+	if input.Destination.ToAddresses[0] != to[0] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destination.ToAddresses[0],
+			input.Destination.ToAddresses[0],
 			to[0],
 		)
 	}
@@ -128,10 +123,10 @@ func TestSendWithMultipleRecipients(t *testing.T) {
 			2,
 		)
 	}
-	if *input.Destination.ToAddresses[0] != to[0] {
+	if input.Destination.ToAddresses[0] != to[0] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destination.ToAddresses[0],
+			input.Destination.ToAddresses[0],
 			to[0],
 		)
 	}
@@ -158,8 +153,8 @@ func TestSendWithDeniedSender(t *testing.T) {
 			0,
 		)
 	}
-	if sendErr != relay.ErrDeniedSender {
-		t.Errorf("Unexpected error: %s. Expected: %s", sendErr, relay.ErrDeniedSender)
+	if sendErr != filter.ErrDeniedSender {
+		t.Errorf("Unexpected error: %s. Expected: %s", sendErr, filter.ErrDeniedSender)
 	}
 	if len(out) == 0 {
 		t.Error("Unexpected empty stdout")
@@ -184,15 +179,15 @@ func TestSendWithDeniedRecipient(t *testing.T) {
 			1,
 		)
 	}
-	if *input.Destination.ToAddresses[0] != to[1] {
+	if input.Destination.ToAddresses[0] != to[1] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destination.ToAddresses[0],
+			input.Destination.ToAddresses[0],
 			to[1],
 		)
 	}
-	if sendErr != relay.ErrDeniedRecipients {
-		t.Errorf("Unexpected error: %s. Expected: %s", sendErr, relay.ErrDeniedRecipients)
+	if sendErr != filter.ErrDeniedRecipients {
+		t.Errorf("Unexpected error: %s. Expected: %s", sendErr, filter.ErrDeniedRecipients)
 	}
 	if len(out) == 0 {
 		t.Error("Unexpected empty stdout")
@@ -224,10 +219,10 @@ func TestSendWithApiError(t *testing.T) {
 			1,
 		)
 	}
-	if *input.Destination.ToAddresses[0] != to[0] {
+	if input.Destination.ToAddresses[0] != to[0] {
 		t.Errorf(
 			"Unexpected destination: %s. Expected: %s",
-			*input.Destination.ToAddresses[0],
+			input.Destination.ToAddresses[0],
 			to[0],
 		)
 	}
@@ -251,9 +246,9 @@ func TestNew(t *testing.T) {
 	allowFromRegExp, _ := regexp.Compile(`^admin@example\.org$`)
 	denyToRegExp, _ := regexp.Compile(`^bob@example\.org$`)
 	client := New(&setName, allowFromRegExp, denyToRegExp)
-	_, ok := interface{}(client).(relay.Client)
-	if !ok {
-		t.Error("Unexpected: client is not a relay.Client")
+	typ := reflect.TypeOf(client).String()
+	if typ != "pinpoint.Client" {
+		t.Errorf("Unexpected: client is not a relay.Client:%v", typ)
 	}
 	if client.setName != &setName {
 		t.Errorf("Unexpected setName: %s", *client.setName)
