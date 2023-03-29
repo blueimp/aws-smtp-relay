@@ -173,8 +173,16 @@ func (aso *AwsSesObserver) sendMail(asn *RetryAwsSesNotification, out *s3.GetObj
 			return nil, true, err, stringPtr("Auth")
 		}
 	}
+	var from string
+	if len(asn.Mail.CommonHeaders.From) > 0 && asn.Mail.CommonHeaders.From[0] != "" {
+		from = asn.Mail.CommonHeaders.From[0]
+	} else if len(asn.Mail.CommonHeaders.ReturnPath) > 0 {
+		from = asn.Mail.CommonHeaders.ReturnPath
+	} else {
+		return nil, false, fmt.Errorf("no from address"), stringPtr("Mail")
+	}
 
-	if err = c.Mail(asn.Mail.CommonHeaders.From[0], &smtp.MailOptions{}); err != nil {
+	if err = c.Mail(from, &smtp.MailOptions{}); err != nil {
 		return nil, retry(err), err, stringPtr("Mail")
 	}
 	rcpt := make([]string, 0)
