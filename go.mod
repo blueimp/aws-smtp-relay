@@ -5,7 +5,8 @@ go 1.19
 require (
 	github.com/aws/aws-sdk-go-v2/service/pinpointemail v1.12.4
 	github.com/aws/aws-sdk-go-v2/service/ses v1.15.3
-	github.com/mhale/smtpd v0.8.0
+	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
+	github.com/spf13/pflag v1.0.5
 	golang.org/x/crypto v0.6.0
 )
 
@@ -22,7 +23,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.5 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
 )
 
 require (
@@ -33,6 +33,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.5
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.4
 	github.com/aws/smithy-go v1.13.5 // indirect
+	github.com/emersion/go-smtp v0.16.0
 	github.com/google/uuid v1.3.0
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 )
+
+replace github.com/emersion/go-smtp v0.16.0 => github.com/mabels/go-smtp v0.0.0-20230329203023-ed1fe4a331c6

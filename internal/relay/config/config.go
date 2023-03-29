@@ -5,26 +5,29 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/blueimp/aws-smtp-relay/internal"
 	"github.com/spf13/pflag"
 )
 
 type Config struct {
-	Addr        string
-	Name        string
-	Host        string
-	CertFile    string
-	KeyFile     string
-	StartTLSStr string
-	OnlyTLSStr  string
-	RelayAPI    string
-	SetName     string
-	Ips         string
-	User        string
-	IpMap       map[string]bool
-	BcryptHash  []byte
-	Password    []byte
+	Addr         string
+	Name         string
+	Host         string
+	ReadTimeout  int
+	WriteTimeout int
+	CertFile     string
+	KeyFile      string
+	StartTLSStr  string
+	OnlyTLSStr   string
+	RelayAPI     string
+	SetName      string
+	Ips          string
+	User         string
+	IpMap        map[string]bool
+	BcryptHash   []byte
+	Password     []byte
 
 	AllowFrom       string
 	AllowFromRegExp *regexp.Regexp
@@ -56,6 +59,8 @@ func initCliArgs() *Config {
 	pflag.StringVarP(&cfg.User, "user", "u", "", "Authentication username")
 	pflag.StringVarP(&cfg.AllowFrom, "allowFrom", "l", "", "Allowed sender emails regular expression")
 	pflag.StringVarP(&cfg.DenyTo, "denyTo", "d", "", "Denied recipient emails regular expression")
+	pflag.IntVarP(&cfg.ReadTimeout, "readTimeout", "", int(1*time.Minute), "Read timeout in seconds")
+	pflag.IntVarP(&cfg.WriteTimeout, "writeTimeout", "", int(1*time.Minute), "Read timeout in seconds")
 	return &cfg
 }
 

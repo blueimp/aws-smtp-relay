@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/smtp"
 	"regexp"
 	"strings"
 	"time"
@@ -16,6 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
+
+	"github.com/emersion/go-smtp"
 )
 
 type RetryAwsSesNotification struct {
@@ -147,7 +148,10 @@ func (aso *AwsSesObserver) sendMail(asn *RetryAwsSesNotification, out *s3.GetObj
 	if err != nil {
 		return nil, true, err, stringPtr("Dial")
 	}
-	defer c.Close()
+	defer func() {
+		c.Close()
+		c.Quit()
+	}()
 	myName := aso.Config.Smtp.MyName
 	err = c.Hello(myName)
 	if err != nil {
@@ -160,16 +164,17 @@ func (aso *AwsSesObserver) sendMail(asn *RetryAwsSesNotification, out *s3.GetObj
 		}
 	}
 	if aso.Config.Smtp.User != "" && aso.Config.Smtp.Pass != "" {
-		// auth := sasl.NewLoginClient(*aso.Config.Smtp.User, *aso.Config.Smtp.Pass)
+		// auth := sasl.NewPlainClient(aso.Config.Smtp.Identity, aso.Config.Smtp.User, aso.Config.Smtp.Pass)
 		// auth := smtp.CRAMMD5Auth(*aso.Config.Smtp.User, *aso.Config.Smtp.Pass)
-		auth := smtp.CRAMMD5Auth(aso.Config.Smtp.User, aso.Config.Smtp.Pass)
+		// auth/ := .CRAMMD5Auth(aso.Config.Smtp.User, aso.Config.Smtp.Pass)
+		auth := NewCramMD5Client(aso.Config.Smtp.User, aso.Config.Smtp.Pass)
 		err = c.Auth(auth)
 		if err != nil {
 			return nil, true, err, stringPtr("Auth")
 		}
 	}
 
-	if err = c.Mail(asn.Mail.CommonHeaders.From[0]); err != nil {
+	if err = c.Mail(asn.Mail.CommonHeaders.From[0], &smtp.MailOptions{}); err != nil {
 		return nil, retry(err), err, stringPtr("Mail")
 	}
 	rcpt := make([]string, 0)

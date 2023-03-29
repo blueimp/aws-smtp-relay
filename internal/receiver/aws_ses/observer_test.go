@@ -3,19 +3,33 @@ package receiver
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
-	"net/smtp"
+	"math/big"
+	"net"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/blueimp/aws-smtp-relay/internal/relay"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/config"
+	"github.com/emersion/go-sasl"
+	"github.com/emersion/go-smtp"
 	"github.com/google/uuid"
 )
 
@@ -132,12 +146,12 @@ func (sc *mockSMTPClient) StartTLS(config *tls.Config) error {
 	return fmt.Errorf("starttls error")
 }
 
-func (sc *mockSMTPClient) Auth(a smtp.Auth) error {
-	mech, _, err := a.Start(&smtp.ServerInfo{})
+func (sc *mockSMTPClient) Auth(a sasl.Client) error {
+	mech, _, err := a.Start() // &smtp.ServerInfo{})
 	if err != nil {
 		return err
 	}
-	user, err := a.Next([]byte{}, true)
+	user, err := a.Next([]byte{} /* , true */)
 	if err != nil {
 		return err
 	}
@@ -147,7 +161,7 @@ func (sc *mockSMTPClient) Auth(a smtp.Auth) error {
 	return fmt.Errorf("auth error")
 }
 
-func (sc *mockSMTPClient) Mail(from string) error {
+func (sc *mockSMTPClient) Mail(from string, _ *smtp.MailOptions) error {
 	if sc.mailErrFn != nil {
 		return sc.mailErrFn()
 	}
@@ -641,4 +655,236 @@ func TestConfiguredSet(t *testing.T) {
 	if obs.Smtp.MyName != "myName" {
 		t.Errorf("Unexpected SMTP my name: %s", obs.Smtp.MyName)
 	}
+}
+
+func publicKey(priv any) any {
+	switch k := priv.(type) {
+	case *rsa.PrivateKey:
+		return &k.PublicKey
+	case *ecdsa.PrivateKey:
+		return &k.PublicKey
+	case ed25519.PrivateKey:
+		return k.Public().(ed25519.PublicKey)
+	default:
+		return nil
+	}
+}
+
+func generateX509() (certFile string, keyFile string, cleanup func(), err error) {
+	var priv *ecdsa.PrivateKey
+	priv, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return certFile, keyFile, func() {}, err
+	}
+	keyUsage := x509.KeyUsageDigitalSignature
+	// if _, isRSA := priv.(*rsa.PrivateKey); isRSA {
+	// 	keyUsage |= x509.KeyUsageKeyEncipherment
+	// }
+
+	notBefore := time.Now().Add(-time.Hour)
+	notAfter := notBefore.Add(time.Hour)
+
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{"GoLang Acme Co"},
+		},
+		NotBefore: notBefore,
+		NotAfter:  notAfter,
+
+		KeyUsage:              keyUsage,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+
+	hosts := strings.Split("aws-relay.test,127.0.0.1", ",")
+	for _, h := range hosts {
+		if ip := net.ParseIP(h); ip != nil {
+			template.IPAddresses = append(template.IPAddresses, ip)
+		} else {
+			template.DNSNames = append(template.DNSNames, h)
+		}
+	}
+
+	// if *isCA {
+	template.IsCA = true
+	template.KeyUsage |= x509.KeyUsageCertSign
+	// }
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey(priv), priv)
+	if err != nil {
+		return certFile, keyFile, func() {}, err
+	}
+
+	certOut, err := os.CreateTemp("./", "cert-*.pem")
+	if err != nil {
+		return certFile, keyFile, func() {}, err
+	}
+	// var certBytes bytes.Buffer
+	// certOut := bufio.NewWriter(&certBytes)
+	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		return certFile, keyFile, func() {}, err
+	}
+	certOut.Close()
+	certFile = certOut.Name()
+
+	keyOut, err := os.CreateTemp("./", "key-*.pem")
+	if err != nil {
+		return certFile, keyFile, func() {}, err
+	}
+	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
+	if err != nil {
+		return certFile, keyFile, func() {}, err
+	}
+	if err := pem.Encode(keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}); err != nil {
+		return certFile, keyFile, func() {}, err
+	}
+	keyOut.Close()
+	keyFile = keyOut.Name()
+
+	return certFile, keyFile, func() {
+		os.Remove(certFile)
+		os.Remove(keyFile)
+	}, nil
+}
+
+type gosmtpSMTP struct {
+	smtpClient SMTPClient
+}
+
+func (s *gosmtpSMTP) Dial(addr string) (SMTPClient, error) {
+	return smtp.Dial(addr)
+}
+
+func (s *gosmtpSMTP) DialTLS(addr string, tls *tls.Config) (SMTPClient, error) {
+	return smtp.DialTLS(addr, tls)
+}
+
+func getField() uintptr {
+	preFile, _ := os.Open("/dev/null")
+	preFileId := preFile.Fd()
+	preFile.Close()
+	return preFileId
+}
+
+func startSMTPServer(t *testing.T, clientFn func()) {
+	scfg, err := config.Configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	scfg.Addr = "127.0.0.1:52525"
+	scfg.User = "user"
+	scfg.BcryptHash = []byte("pass")
+
+	var deferFn func()
+	scfg.CertFile, scfg.KeyFile, deferFn, err = generateX509()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	defer deferFn()
+
+	srv, err := relay.Server(scfg)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	// srv.Debug = os.Stderr
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+
+		wg.Done()
+		err = srv.ListenAndServe()
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+	}()
+	wg.Wait()
+	defer srv.Close()
+	clientFn()
+}
+
+func TestRealSmtp(t *testing.T) {
+	startSMTPServer(t, func() {
+		cli := *FlagCliArgs
+		cli.EnableStr = "true"
+		cli.SQS.Name = "testQ"
+		cli.Bucket.Name = "bucket"
+		cli.Bucket.KeyPrefix = "prefix/"
+		cli.Smtp.Host = "127.0.0.1"
+		cli.Smtp.Port = 52525
+		cli.Smtp.Identity = "identity"
+		cli.Smtp.User = "user"
+		cli.Smtp.Pass = "pass"
+		cfg, err := ConfigureObserver(cli)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+		obs, err := mockNewAWSSESObserver(cfg)
+		if err != nil {
+			t.Error(err)
+		}
+
+		obs.Smtp = &gosmtpSMTP{}
+		asn := setupAsn(obs)
+		asn.Receipt.Recipients = []string{
+			"to@smtp.world",
+			"kaputt@smtp.world",
+		}
+		preFileId := getField()
+		rcpt, retry, err, _ := obs.sendMail(asn, s3GetObjectOutput("testBody"))
+		if getField() != preFileId {
+			t.Errorf("File descriptor leak: %d", getField())
+		}
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+		if retry != false {
+			t.Errorf("Unexpected retry: %t", retry)
+		}
+		if len(rcpt) != 2 {
+			t.Errorf("Unexpected recipient count: %d", len(rcpt))
+		}
+	})
+}
+
+func TestRealSmtpFromFail(t *testing.T) {
+	startSMTPServer(t, func() {
+		cli := *FlagCliArgs
+		cli.EnableStr = "true"
+		cli.SQS.Name = "testQ"
+		cli.Bucket.Name = "bucket"
+		cli.Bucket.KeyPrefix = "prefix/"
+		cli.Smtp.Host = "127.0.0.1"
+		cli.Smtp.Port = 52525
+		cli.Smtp.Identity = "identity"
+		cli.Smtp.User = "user"
+		cli.Smtp.Pass = "pass"
+		cfg, err := ConfigureObserver(cli)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+		obs, err := mockNewAWSSESObserver(cfg)
+		if err != nil {
+			t.Error(err)
+		}
+
+		obs.Smtp = &gosmtpSMTP{}
+		asn := setupAsn(obs)
+		asn.Receipt.Recipients = []string{
+			"to@smtp.world",
+			"kaputt@smtp.world",
+		}
+		asn.Mail.CommonHeaders.From = []string{"<from@kaputt"}
+		preFileId := getField()
+		_, _, err, _ = obs.sendMail(asn, s3GetObjectOutput("testBody"))
+		if getField() != preFileId {
+			t.Errorf("File descriptor leak: %d", getField())
+		}
+		if err == nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+	})
 }

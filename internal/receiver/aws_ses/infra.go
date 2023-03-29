@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
-	"net/smtp"
+
+	"github.com/emersion/go-sasl"
+	"github.com/emersion/go-smtp"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -52,8 +54,8 @@ type SMTPClient interface {
 	Close() error
 	Hello(host string) error
 	StartTLS(config *tls.Config) error
-	Auth(a smtp.Auth) error
-	Mail(from string) error
+	Auth(a sasl.Client) error
+	Mail(from string, x *smtp.MailOptions) error
 	Rcpt(to string) error
 	Data() (io.WriteCloser, error)
 	Quit() error
