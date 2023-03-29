@@ -137,6 +137,17 @@ func retry(err error) bool {
 	return retry
 }
 
+func (asn *RetryAwsSesNotification) fromAddress() (from string, err error) {
+	if len(asn.Mail.CommonHeaders.From) > 0 && asn.Mail.CommonHeaders.From[0] != "" {
+		from = asn.Mail.CommonHeaders.From[0]
+	} else if len(asn.Mail.CommonHeaders.ReturnPath) > 0 {
+		from = asn.Mail.CommonHeaders.ReturnPath
+	} else {
+		err = fmt.Errorf("no from address found")
+	}
+	return
+}
+
 func (aso *AwsSesObserver) sendMail(asn *RetryAwsSesNotification, out *s3.GetObjectOutput) ([]string, bool, error, *string) {
 	var err error
 	var c SMTPClient
@@ -173,15 +184,10 @@ func (aso *AwsSesObserver) sendMail(asn *RetryAwsSesNotification, out *s3.GetObj
 			return nil, true, err, stringPtr("Auth")
 		}
 	}
-	var from string
-	if len(asn.Mail.CommonHeaders.From) > 0 && asn.Mail.CommonHeaders.From[0] != "" {
-		from = asn.Mail.CommonHeaders.From[0]
-	} else if len(asn.Mail.CommonHeaders.ReturnPath) > 0 {
-		from = asn.Mail.CommonHeaders.ReturnPath
-	} else {
-		return nil, false, fmt.Errorf("no from address"), stringPtr("Mail")
+	from, err := asn.fromAddress()
+	if err != nil {
+		return nil, false, err, stringPtr("Mail")
 	}
-
 	if err = c.Mail(from, &smtp.MailOptions{}); err != nil {
 		return nil, retry(err), err, stringPtr("Mail")
 	}
@@ -330,20 +336,21 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 					var rcpt []string
 					var component *string
 					rcpt, retry, err, component = aso.sendMail(&asn, out)
+					from, _ := asn.fromAddress()
 					mailComponent := "aso/Sendmail"
 					if err != nil {
 						mailComponent = fmt.Sprintf("%s/%s", mailComponent, *component)
 					}
 					if !retry && err != nil {
 						// abort send if error is not retryable
-						LogError(mailComponent, "msg=%s abort=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), asn.Mail.CommonHeaders.From, asn.Mail.CommonHeaders.To)
+						LogError(mailComponent, "msg=%s abort=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), from, asn.Mail.CommonHeaders.To)
 					} else {
 						if err != nil {
 							// retryable error
-							err = LogError(mailComponent, "msg=%s err=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), asn.Mail.CommonHeaders.From, rcpt)
+							err = LogError(mailComponent, "msg=%s err=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), from, rcpt)
 						} else {
 							// all good
-							Log(mailComponent, "sent msg=%s from=%v to=%v", asn.Mail.MessageId, asn.Mail.CommonHeaders.From, rcpt)
+							Log(mailComponent, "sent msg=%s from=%v to=%v", asn.Mail.MessageId, from, rcpt)
 						}
 					}
 					if retry {

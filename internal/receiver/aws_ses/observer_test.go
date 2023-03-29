@@ -351,7 +351,7 @@ func TestSendMailFromDefectAsnEmptyFrom(t *testing.T) {
 		"kaputt@smtp.world",
 	}
 	_, _, err, _ = obs.sendMail(asn, s3GetObjectOutput("testBody"))
-	if err.Error() != "no from address" {
+	if err.Error() != "no from address found" {
 		t.Error("Expected no error", err)
 	}
 }
