@@ -15,8 +15,8 @@ type Config struct {
 	Addr         string
 	Name         string
 	Host         string
-	ReadTimeout  int
-	WriteTimeout int
+	ReadTimeout  int64
+	WriteTimeout int64
 	CertFile     string
 	KeyFile      string
 	StartTLSStr  string
@@ -59,8 +59,8 @@ func initCliArgs() *Config {
 	pflag.StringVarP(&cfg.User, "user", "u", "", "Authentication username")
 	pflag.StringVarP(&cfg.AllowFrom, "allowFrom", "l", "", "Allowed sender emails regular expression")
 	pflag.StringVarP(&cfg.DenyTo, "denyTo", "d", "", "Denied recipient emails regular expression")
-	pflag.IntVarP(&cfg.ReadTimeout, "readTimeout", "", int(1*time.Minute), "Read timeout in seconds")
-	pflag.IntVarP(&cfg.WriteTimeout, "writeTimeout", "", int(1*time.Minute), "Read timeout in seconds")
+	pflag.Int64VarP(&cfg.ReadTimeout, "readTimeout", "", int64(1*time.Minute), "Read timeout in seconds")
+	pflag.Int64VarP(&cfg.WriteTimeout, "writeTimeout", "", int64(1*time.Minute), "Read timeout in seconds")
 	return &cfg
 }
 
