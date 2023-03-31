@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strings"
 	"testing"
@@ -778,14 +779,14 @@ func (m *mockSesClient) SendRawEmail(_ context.Context, mi *awsSes.SendRawEmailI
 	return nil, nil
 }
 
-func startSMTPServerTest(fn func(srv *smtp.Server)) error {
+func startSMTPServerTest(fn func(*smtp.Server, net.Listener)) error {
 	certFile, keyFile, deferFn, err := test_utils.GenerateX509()
 	if err != nil {
 		return fmt.Errorf("Unexpected error: %s", err)
 	}
 	defer deferFn()
 	cfg, err := config.Configure(config.Config{
-		Addr:       "127.0.0.1:52525",
+		Addr:       "127.0.0.1:0",
 		User:       "user",
 		BcryptHash: []byte("pass"),
 		CertFile:   certFile,
@@ -807,13 +808,14 @@ func startSMTPServerTest(fn func(srv *smtp.Server)) error {
 }
 
 func TestRealSmtp(t *testing.T) {
-	err := startSMTPServerTest(func(srv *smtp.Server) {
+	err := startSMTPServerTest(func(srv *smtp.Server, lsr net.Listener) {
 		cli := *FlagCliArgs
 		cli.EnableStr = "true"
 		cli.SQS.Name = "testQ"
 		cli.Bucket.Name = "bucket"
 		cli.Bucket.KeyPrefix = "prefix/"
-		cli.Smtp.Host, cli.Smtp.Port = server.SplitAddr(srv.Addr)
+		cli.Smtp.Host, _ = server.SplitAddr(srv.Addr)
+		cli.Smtp.Port = lsr.Addr().(*net.TCPAddr).Port
 		cli.Smtp.Identity = "identity"
 		cli.Smtp.User = "user"
 		cli.Smtp.Pass = "pass"
@@ -853,14 +855,14 @@ func TestRealSmtp(t *testing.T) {
 }
 
 func TestRealSmtpFromFail(t *testing.T) {
-	err := startSMTPServerTest(func(srv *smtp.Server) {
+	err := startSMTPServerTest(func(srv *smtp.Server, lsr net.Listener) {
 		cli := *FlagCliArgs
 		cli.EnableStr = "true"
 		cli.SQS.Name = "testQ"
 		cli.Bucket.Name = "bucket"
 		cli.Bucket.KeyPrefix = "prefix/"
 		cli.Smtp.Host = "127.0.0.1"
-		cli.Smtp.Port = 52525
+		cli.Smtp.Port = lsr.Addr().(*net.TCPAddr).Port
 		cli.Smtp.Identity = "identity"
 		cli.Smtp.User = "user"
 		cli.Smtp.Pass = "pass"

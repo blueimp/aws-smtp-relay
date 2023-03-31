@@ -38,5 +38,6 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 )
 
-// replace github.com/emersion/go-smtp v0.16.0 => github.com/mabels/go-smtp v0.0.0-20230329203023-ed1fe4a331c6
-replace github.com/emersion/go-smtp v0.16.0 => ../go-smtp
+replace github.com/emersion/go-smtp v0.16.0 => github.com/mabels/go-smtp v0.0.0-20230331132253-992d2562fbaf
+
+// replace github.com/emersion/go-smtp v0.16.0 => ../go-smtp

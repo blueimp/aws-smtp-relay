@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"reflect"
 	"strings"
@@ -338,14 +339,14 @@ func (m *mockSesClient) SendRawEmail(_ context.Context, mi *awsSes.SendRawEmailI
 	return nil, nil
 }
 
-func startSMTPServerTest(fn func(srv *smtp.Server), opts ...ServerOpts) error {
+func startSMTPServerTest(fn func(srv *smtp.Server, lsr net.Listener), opts ...ServerOpts) error {
 	certFile, keyFile, deferFn, err := test_utils.GenerateX509()
 	if err != nil {
 		return fmt.Errorf("Unexpected error: %s", err)
 	}
 	defer deferFn()
 	cfg, err := config.Configure(config.Config{
-		Addr:       "127.0.0.1:52526",
+		Addr:       "127.0.0.1:0",
 		User:       "user",
 		BcryptHash: []byte("pass"),
 
@@ -361,19 +362,19 @@ func startSMTPServerTest(fn func(srv *smtp.Server), opts ...ServerOpts) error {
 
 func TestFullStackAwsSes(t *testing.T) {
 	mockSesClient := &mockSesClient{}
-	err := startSMTPServerTest(func(srv *smtp.Server) {
+	err := startSMTPServerTest(func(srv *smtp.Server, lsr net.Listener) {
 		from := "Test Name <test.name@dest.test>"
 		tos := []string{"bla@blub.test", "bla2@blub.test"}
-		// cli.Smtp.Host, cli.Smtp.Port = SplitAddr(srv.Addr)
-		err := smtp.SendMail(srv.Addr,
+		err := smtp.SendMail(fmt.Sprintf("127.0.0.1:%d", lsr.Addr().(*net.TCPAddr).Port),
 			nil, from, tos,
 			bytes.NewBufferString("Test message"),
-			func(srv interface{}) {
+			func(srv interface{}) error {
 				tlsCfg, ok := srv.(*tls.Config)
 				if !ok || tlsCfg == nil {
-					return
+					return nil
 				}
 				tlsCfg.InsecureSkipVerify = true
+				return nil
 			},
 		)
 		if err != nil {
@@ -416,19 +417,19 @@ func (m *mockPinPointClient) SendEmail(_ context.Context, pi *pinpointemail.Send
 
 func TestFullStackPinPoint(t *testing.T) {
 	mockPPClient := &mockPinPointClient{}
-	err := startSMTPServerTest(func(srv *smtp.Server) {
+	err := startSMTPServerTest(func(srv *smtp.Server, lsr net.Listener) {
 		from := "Test Name <test.name@dest.test>"
 		tos := []string{"bla@blub.test", "bla2@blub.test"}
-		// cli.Smtp.Host, cli.Smtp.Port = SplitAddr(srv.Addr)
-		err := smtp.SendMail(srv.Addr,
+		err := smtp.SendMail(fmt.Sprintf("127.0.0.1:%d", lsr.Addr().(*net.TCPAddr).Port),
 			nil, from, tos,
 			bytes.NewBufferString("Test message"),
-			func(srv interface{}) {
+			func(srv interface{}) error {
 				tlsCfg, ok := srv.(*tls.Config)
 				if !ok || tlsCfg == nil {
-					return
+					return nil
 				}
 				tlsCfg.InsecureSkipVerify = true
+				return nil
 			},
 		)
 		if err != nil {

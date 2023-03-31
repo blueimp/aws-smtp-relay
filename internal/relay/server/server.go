@@ -220,7 +220,7 @@ func SplitAddr(addr string) (host string, port int) {
 	return
 }
 
-func StartSMTPServer(inCfg config.Config, myLog *log.Logger, clientFn func(srv *smtp.Server), sopts ...ServerOpts) error {
+func StartSMTPServer(inCfg config.Config, myLog *log.Logger, clientFn func(srv *smtp.Server, lsr net.Listener), sopts ...ServerOpts) error {
 	if myLog == nil {
 		myLog = log.Default()
 	}
@@ -244,17 +244,20 @@ func StartSMTPServer(inCfg config.Config, myLog *log.Logger, clientFn func(srv *
 		}
 	}()
 
+	var lsr net.Listener
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		wg.Done()
-		err = srv.ListenAndServe()
+		err = srv.ListenAndServe(func(my net.Listener) {
+			lsr = my
+			wg.Done()
+		})
 		if err != nil {
 			myLog.Printf("SMTP server error: %s", err)
 		}
 	}()
 	wg.Wait()
 	defer srv.Close()
-	clientFn(srv)
+	clientFn(srv, lsr)
 	return nil
 }
