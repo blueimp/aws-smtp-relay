@@ -1,11 +1,24 @@
-package relay
+package server
 
 import (
+	"bytes"
+	"context"
+	"crypto/tls"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/pinpointemail"
+	awsSes "github.com/aws/aws-sdk-go-v2/service/ses"
+
 	"github.com/blueimp/aws-smtp-relay/internal/relay/config"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/ses"
+	"github.com/blueimp/aws-smtp-relay/internal/test_utils"
+	"github.com/emersion/go-smtp"
 )
 
 const certPEM = `-----BEGIN CERTIFICATE-----
@@ -307,10 +320,148 @@ func TestServerWithTLSWithPassphrase(t *testing.T) {
 	}
 	os.Setenv("TLS_KEY_PASS", passphrase)
 	srv, err := Server(cfg)
+	os.Unsetenv("TLS_KEY_PASS")
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 	if srv.TLSConfig == nil {
 		t.Errorf("Unexpected empty TLS config.")
+	}
+}
+
+type mockSesClient struct {
+	mailInput awsSes.SendRawEmailInput
+}
+
+func (m *mockSesClient) SendRawEmail(_ context.Context, mi *awsSes.SendRawEmailInput, opts ...func(*awsSes.Options)) (*awsSes.SendRawEmailOutput, error) {
+	m.mailInput = *mi
+	return nil, nil
+}
+
+func startSMTPServerTest(fn func(srv *smtp.Server), opts ...ServerOpts) error {
+	certFile, keyFile, deferFn, err := test_utils.GenerateX509()
+	if err != nil {
+		return fmt.Errorf("Unexpected error: %s", err)
+	}
+	defer deferFn()
+	cfg, err := config.Configure(config.Config{
+		Addr:       "127.0.0.1:52526",
+		User:       "user",
+		BcryptHash: []byte("pass"),
+
+		CertFile: certFile,
+		KeyFile:  keyFile,
+	})
+	if err != nil {
+		return err
+	}
+	applyServerOpts(cfg, opts...)
+	return StartSMTPServer(*cfg, nil, fn, opts...)
+}
+
+func TestFullStackAwsSes(t *testing.T) {
+	mockSesClient := &mockSesClient{}
+	err := startSMTPServerTest(func(srv *smtp.Server) {
+		from := "Test Name <test.name@dest.test>"
+		tos := []string{"bla@blub.test", "bla2@blub.test"}
+		// cli.Smtp.Host, cli.Smtp.Port = SplitAddr(srv.Addr)
+		err := smtp.SendMail(srv.Addr,
+			nil, from, tos,
+			bytes.NewBufferString("Test message"),
+			func(srv interface{}) {
+				tlsCfg, ok := srv.(*tls.Config)
+				if !ok || tlsCfg == nil {
+					return
+				}
+				tlsCfg.InsecureSkipVerify = true
+			},
+		)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+		mi := mockSesClient.mailInput
+		if strings.TrimSpace(string(mi.RawMessage.Data)) != "Test message" {
+			t.Errorf("Unexpected message: %s", string(mi.RawMessage.Data))
+		}
+		if !reflect.DeepEqual(mi.Destinations, tos) {
+			t.Errorf("Unexpected destinations: %v", mi.Destinations)
+		}
+		if *mi.Source != from {
+			t.Errorf("Unexpected source: %s", *mi.Source)
+		}
+
+	}, func(be interface{}) {
+		backend, ok := be.(*Backend)
+		if !ok || backend == nil {
+			return
+		}
+		clt := backend.Client.Annotate(&ses.Client{
+			SesClient: mockSesClient,
+		})
+		backend.Client = clt
+	})
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+type mockPinPointClient struct {
+	pinPointInput pinpointemail.SendEmailInput
+}
+
+func (m *mockPinPointClient) SendEmail(_ context.Context, pi *pinpointemail.SendEmailInput, fns ...func(*pinpointemail.Options)) (*pinpointemail.SendEmailOutput, error) {
+	m.pinPointInput = *pi
+	return nil, nil
+}
+
+func TestFullStackPinPoint(t *testing.T) {
+	mockPPClient := &mockPinPointClient{}
+	err := startSMTPServerTest(func(srv *smtp.Server) {
+		from := "Test Name <test.name@dest.test>"
+		tos := []string{"bla@blub.test", "bla2@blub.test"}
+		// cli.Smtp.Host, cli.Smtp.Port = SplitAddr(srv.Addr)
+		err := smtp.SendMail(srv.Addr,
+			nil, from, tos,
+			bytes.NewBufferString("Test message"),
+			func(srv interface{}) {
+				tlsCfg, ok := srv.(*tls.Config)
+				if !ok || tlsCfg == nil {
+					return
+				}
+				tlsCfg.InsecureSkipVerify = true
+			},
+		)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+		pi := mockPPClient.pinPointInput
+		if strings.TrimSpace(string(pi.Content.Raw.Data)) != "Test message" {
+			t.Errorf("Unexpected message: %s", string(pi.Content.Raw.Data))
+		}
+		if !reflect.DeepEqual(pi.ReplyToAddresses, tos) {
+			t.Errorf("Unexpected destinations: %v", pi.ReplyToAddresses)
+		}
+		if *pi.FromEmailAddress != from {
+			t.Errorf("Unexpected source: %s", *pi.FromEmailAddress)
+		}
+
+	}, func(be interface{}) {
+		backend, ok := be.(*Backend)
+		if !ok || backend == nil {
+			return
+		}
+		clt := backend.Client.Annotate(&pinpoint.Client{
+			PinpointClient: mockPPClient,
+		})
+		backend.Client = clt
+	}, func(cfg interface{}) {
+		config, ok := cfg.(*config.Config)
+		if !ok || config == nil {
+			return
+		}
+		config.RelayAPI = "pinpoint"
+	})
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
 	}
 }

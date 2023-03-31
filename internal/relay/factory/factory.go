@@ -1,35 +1,27 @@
 /*
 Package relay provides an interface to relay emails via Amazon SES/Pinpoint API.
 */
-package client
+package factory
 
 import (
 	"errors"
-	"net"
 
+	"github.com/blueimp/aws-smtp-relay/internal/relay"
 	"github.com/blueimp/aws-smtp-relay/internal/relay/config"
 	pinpointrelay "github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
 	sesrelay "github.com/blueimp/aws-smtp-relay/internal/relay/ses"
 )
 
 // Client provides an interface to send emails.
-type Client interface {
-	Send(
-		origin net.Addr,
-		from string,
-		to []string,
-		data []byte,
-	) error
-}
 
-func NewClient(cfg *config.Config) (Client, error) {
+func NewClient(cfg *config.Config) (relay.Client, error) {
 
-	var client Client
+	var client relay.Client
 	switch cfg.RelayAPI {
 	case "pinpoint":
-		client = pinpointrelay.New(&cfg.SetName, cfg.AllowFromRegExp, cfg.DenyToRegExp)
+		client = pinpointrelay.New(&cfg.SetName, cfg.AllowFromRegExp, cfg.DenyToRegExp, uint(cfg.MaxMessageBytes))
 	case "ses":
-		client = sesrelay.New(&cfg.SetName, cfg.AllowFromRegExp, cfg.DenyToRegExp)
+		client = sesrelay.New(&cfg.SetName, cfg.AllowFromRegExp, cfg.DenyToRegExp, uint(cfg.MaxMessageBytes))
 	default:
 		return nil, errors.New("Invalid relay API: " + cfg.RelayAPI)
 	}

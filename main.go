@@ -7,8 +7,8 @@ import (
 	"time"
 
 	receiver "github.com/blueimp/aws-smtp-relay/internal/receiver/aws_ses"
-	"github.com/blueimp/aws-smtp-relay/internal/relay"
 	"github.com/blueimp/aws-smtp-relay/internal/relay/config"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/server"
 	"github.com/spf13/pflag"
 )
 
@@ -58,7 +58,7 @@ func main() {
 			obs.Observe()
 		}()
 	}
-	srv, err := relay.Server(cfg)
+	srv, err := server.Server(cfg)
 	if err == nil {
 		err = srv.ListenAndServe()
 	}

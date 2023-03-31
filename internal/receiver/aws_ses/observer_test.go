@@ -3,31 +3,24 @@ package receiver
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io"
-	"math/big"
-	"net"
 	"os"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	awsSes "github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/blueimp/aws-smtp-relay/internal/relay"
+
 	"github.com/blueimp/aws-smtp-relay/internal/relay/config"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/server"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/ses"
+	"github.com/blueimp/aws-smtp-relay/internal/test_utils"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
 	"github.com/google/uuid"
@@ -766,99 +759,6 @@ func TestConfiguredSet(t *testing.T) {
 	}
 }
 
-func publicKey(priv any) any {
-	switch k := priv.(type) {
-	case *rsa.PrivateKey:
-		return &k.PublicKey
-	case *ecdsa.PrivateKey:
-		return &k.PublicKey
-	case ed25519.PrivateKey:
-		return k.Public().(ed25519.PublicKey)
-	default:
-		return nil
-	}
-}
-
-func generateX509() (certFile string, keyFile string, cleanup func(), err error) {
-	var priv *ecdsa.PrivateKey
-	priv, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return certFile, keyFile, func() {}, err
-	}
-	keyUsage := x509.KeyUsageDigitalSignature
-	// if _, isRSA := priv.(*rsa.PrivateKey); isRSA {
-	// 	keyUsage |= x509.KeyUsageKeyEncipherment
-	// }
-
-	notBefore := time.Now().Add(-time.Hour)
-	notAfter := notBefore.Add(time.Hour)
-
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
-	template := x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization: []string{"GoLang Acme Co"},
-		},
-		NotBefore: notBefore,
-		NotAfter:  notAfter,
-
-		KeyUsage:              keyUsage,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-	}
-
-	hosts := strings.Split("aws-relay.test,127.0.0.1", ",")
-	for _, h := range hosts {
-		if ip := net.ParseIP(h); ip != nil {
-			template.IPAddresses = append(template.IPAddresses, ip)
-		} else {
-			template.DNSNames = append(template.DNSNames, h)
-		}
-	}
-
-	// if *isCA {
-	template.IsCA = true
-	template.KeyUsage |= x509.KeyUsageCertSign
-	// }
-
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey(priv), priv)
-	if err != nil {
-		return certFile, keyFile, func() {}, err
-	}
-
-	certOut, err := os.CreateTemp("./", "cert-*.pem")
-	if err != nil {
-		return certFile, keyFile, func() {}, err
-	}
-	// var certBytes bytes.Buffer
-	// certOut := bufio.NewWriter(&certBytes)
-	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		return certFile, keyFile, func() {}, err
-	}
-	certOut.Close()
-	certFile = certOut.Name()
-
-	keyOut, err := os.CreateTemp("./", "key-*.pem")
-	if err != nil {
-		return certFile, keyFile, func() {}, err
-	}
-	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
-	if err != nil {
-		return certFile, keyFile, func() {}, err
-	}
-	if err := pem.Encode(keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}); err != nil {
-		return certFile, keyFile, func() {}, err
-	}
-	keyOut.Close()
-	keyFile = keyOut.Name()
-
-	return certFile, keyFile, func() {
-		os.Remove(certFile)
-		os.Remove(keyFile)
-	}, nil
-}
-
 type gosmtpSMTP struct {
 	smtpClient SMTPClient
 }
@@ -871,59 +771,49 @@ func (s *gosmtpSMTP) DialTLS(addr string, tls *tls.Config) (SMTPClient, error) {
 	return smtp.DialTLS(addr, tls)
 }
 
-func getField() uintptr {
-	preFile, _ := os.Open("/dev/null")
-	preFileId := preFile.Fd()
-	preFile.Close()
-	return preFileId
+type mockSesClient struct {
 }
 
-func startSMTPServer(t *testing.T, clientFn func()) {
-	scfg, err := config.Configure()
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-	scfg.Addr = "127.0.0.1:52525"
-	scfg.User = "user"
-	scfg.BcryptHash = []byte("pass")
+func (m *mockSesClient) SendRawEmail(_ context.Context, mi *awsSes.SendRawEmailInput, opts ...func(*awsSes.Options)) (*awsSes.SendRawEmailOutput, error) {
+	return nil, nil
+}
 
-	var deferFn func()
-	scfg.CertFile, scfg.KeyFile, deferFn, err = generateX509()
+func startSMTPServerTest(fn func(srv *smtp.Server)) error {
+	certFile, keyFile, deferFn, err := test_utils.GenerateX509()
 	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
+		return fmt.Errorf("Unexpected error: %s", err)
 	}
 	defer deferFn()
-
-	srv, err := relay.Server(scfg)
+	cfg, err := config.Configure(config.Config{
+		Addr:       "127.0.0.1:52525",
+		User:       "user",
+		BcryptHash: []byte("pass"),
+		CertFile:   certFile,
+		KeyFile:    keyFile,
+	})
 	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
+		return err
 	}
-	// srv.Debug = os.Stderr
-
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-
-		wg.Done()
-		err = srv.ListenAndServe()
-		if err != nil {
-			t.Errorf("Unexpected error: %s", err)
+	return server.StartSMTPServer(*cfg, nil, fn, func(be interface{}) {
+		backend, ok := be.(*server.Backend)
+		if !ok || backend == nil {
+			return
 		}
-	}()
-	wg.Wait()
-	defer srv.Close()
-	clientFn()
+		clt := backend.Client.Annotate(&ses.Client{
+			SesClient: &mockSesClient{},
+		})
+		backend.Client = clt
+	})
 }
 
 func TestRealSmtp(t *testing.T) {
-	startSMTPServer(t, func() {
+	err := startSMTPServerTest(func(srv *smtp.Server) {
 		cli := *FlagCliArgs
 		cli.EnableStr = "true"
 		cli.SQS.Name = "testQ"
 		cli.Bucket.Name = "bucket"
 		cli.Bucket.KeyPrefix = "prefix/"
-		cli.Smtp.Host = "127.0.0.1"
-		cli.Smtp.Port = 52525
+		cli.Smtp.Host, cli.Smtp.Port = server.SplitAddr(srv.Addr)
 		cli.Smtp.Identity = "identity"
 		cli.Smtp.User = "user"
 		cli.Smtp.Pass = "pass"
@@ -942,10 +832,10 @@ func TestRealSmtp(t *testing.T) {
 			"to@smtp.world",
 			"kaputt@smtp.world",
 		}
-		preFileId := getField()
+		preFileId := test_utils.GetNextFileDescriptor()
 		rcpt, retry, err, _ := obs.sendMail(asn, s3GetObjectOutput("testBody"))
-		if getField() != preFileId {
-			t.Errorf("File descriptor leak: %d", getField())
+		if test_utils.GetNextFileDescriptor() != preFileId {
+			t.Errorf("File descriptor leak: %d", test_utils.GetNextFileDescriptor())
 		}
 		if err != nil {
 			t.Errorf("Unexpected error: %s", err)
@@ -957,10 +847,13 @@ func TestRealSmtp(t *testing.T) {
 			t.Errorf("Unexpected recipient count: %d", len(rcpt))
 		}
 	})
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 }
 
 func TestRealSmtpFromFail(t *testing.T) {
-	startSMTPServer(t, func() {
+	err := startSMTPServerTest(func(srv *smtp.Server) {
 		cli := *FlagCliArgs
 		cli.EnableStr = "true"
 		cli.SQS.Name = "testQ"
@@ -987,13 +880,16 @@ func TestRealSmtpFromFail(t *testing.T) {
 			"kaputt@smtp.world",
 		}
 		asn.Mail.CommonHeaders.From = []string{"<from@kaputt"}
-		preFileId := getField()
+		preFileId := test_utils.GetNextFileDescriptor()
 		_, _, err, _ = obs.sendMail(asn, s3GetObjectOutput("testBody"))
-		if getField() != preFileId {
-			t.Errorf("File descriptor leak: %d", getField())
+		if test_utils.GetNextFileDescriptor() != preFileId {
+			t.Errorf("File descriptor leak: %d", test_utils.GetNextFileDescriptor())
 		}
 		if err == nil {
 			t.Errorf("Unexpected error: %s", err)
 		}
 	})
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 }

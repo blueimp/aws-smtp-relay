@@ -1,6 +1,7 @@
 package ses
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io/ioutil"
@@ -54,13 +55,15 @@ func sendHelper(
 	os.Stderr = errWriter
 	func() {
 		c := Client{
-			sesClient:       &mockSESClient{},
+			SesClient:       &mockSESClient{},
 			setName:         configurationSetName,
 			allowFromRegExp: allowFromRegExp,
 			denyToRegExp:    denyToRegExp,
+			maxMessageSize:  1024 * 1024,
 		}
 		testData.err = apiErr
-		sendErr = c.Send(origin, from, to, data)
+		dr := bytes.NewReader(data)
+		sendErr = c.Send(origin, from, to, dr)
 		outWriter.Close()
 		errWriter.Close()
 	}()
@@ -245,7 +248,7 @@ func TestNew(t *testing.T) {
 	setName := ""
 	allowFromRegExp, _ := regexp.Compile(`^admin@example\.org$`)
 	denyToRegExp, _ := regexp.Compile(`^bob@example\.org$`)
-	client := New(&setName, allowFromRegExp, denyToRegExp)
+	client := New(&setName, allowFromRegExp, denyToRegExp, 10*1024*1024)
 	typ := reflect.TypeOf(client).String()
 	if typ != "ses.Client" {
 		t.Errorf("Unexpected: client is not a relay.Client:%v", typ)

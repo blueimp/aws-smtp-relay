@@ -1,6 +1,7 @@
 package pinpoint
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io/ioutil"
@@ -54,13 +55,15 @@ func sendHelper(
 	os.Stderr = errWriter
 	func() {
 		c := Client{
-			pinpointClient:  &mockPinpointEmailClient{},
+			PinpointClient:  &mockPinpointEmailClient{},
 			setName:         configurationSetName,
 			allowFromRegExp: allowFromRegExp,
 			denyToRegExp:    denyToRegExp,
+			maxMessageSize:  1024 * 1024,
 		}
 		testData.err = apiErr
-		sendErr = c.Send(origin, from, to, data)
+		dr := bytes.NewReader(data)
+		sendErr = c.Send(origin, from, to, dr)
 		outWriter.Close()
 		errWriter.Close()
 	}()
@@ -75,7 +78,13 @@ func TestSend(t *testing.T) {
 	to := []string{"bob@example.org"}
 	data := []byte{'T', 'E', 'S', 'T'}
 	setName := ""
-	input, out, err, _ := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
+	input, out, err, goerr := sendHelper(&origin, from, to, data, &setName, nil, nil, nil)
+	if goerr != nil {
+		t.Errorf("Unexpected error: %s", goerr)
+	}
+	if len(err) != 0 {
+		t.Errorf("Unexpected error: %s", err)
+	}
 	if *input.FromEmailAddress != from {
 		t.Errorf(
 			"Unexpected source: %s. Expected: %s",
@@ -245,7 +254,7 @@ func TestNew(t *testing.T) {
 	setName := ""
 	allowFromRegExp, _ := regexp.Compile(`^admin@example\.org$`)
 	denyToRegExp, _ := regexp.Compile(`^bob@example\.org$`)
-	client := New(&setName, allowFromRegExp, denyToRegExp)
+	client := New(&setName, allowFromRegExp, denyToRegExp, 10*1024*1024)
 	typ := reflect.TypeOf(client).String()
 	if typ != "pinpoint.Client" {
 		t.Errorf("Unexpected: client is not a relay.Client:%v", typ)

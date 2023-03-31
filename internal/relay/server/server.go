@@ -1,4 +1,4 @@
-package relay
+package server
 
 import (
 	"crypto/hmac"
@@ -13,24 +13,39 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/blueimp/aws-smtp-relay/internal/relay"
 	"github.com/blueimp/aws-smtp-relay/internal/relay/config"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/factory"
 
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
 )
 
-type Backend struct{}
+type Backend struct {
+	Client relay.Client
+}
 
-func (bkd *Backend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
-	return &Session{}, nil
+func (bkd *Backend) NewSession(conn *smtp.Conn) (smtp.Session, error) {
+	return &Session{
+		conn:   conn,
+		client: bkd.Client,
+	}, nil
 }
 
 // A Session is returned after EHLO.
-type Session struct{}
+type Session struct {
+	conn   *smtp.Conn
+	client relay.Client
+	from   string
+	to     []string
+}
 
 func (s *Session) AuthPlain(username, password string) error {
 	if username != "username" || password != "password" {
@@ -40,22 +55,17 @@ func (s *Session) AuthPlain(username, password string) error {
 }
 
 func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
-	log.Println("Mail from:", from)
+	s.from = from
 	return nil
 }
 
 func (s *Session) Rcpt(to string) error {
-	log.Println("Rcpt to:", to)
+	s.to = append(s.to, to)
 	return nil
 }
 
 func (s *Session) Data(r io.Reader) error {
-	if b, err := ioutil.ReadAll(r); err != nil {
-		return err
-	} else {
-		log.Println("Data:", string(b))
-	}
-	return nil
+	return s.client.Send(s.conn.Conn().RemoteAddr(), s.from, s.to, r)
 }
 
 func (s *Session) Reset() {}
@@ -120,8 +130,21 @@ func NewCramMD5Server(username, secret string) smtp.SaslServerFactory {
 	}
 }
 
-func Server(cfg *config.Config) (srv *smtp.Server, err error) {
-	be := &Backend{}
+type ServerOpts func(opt interface{})
+
+func applyServerOpts(val interface{}, opts ...ServerOpts) {
+	for _, opt := range opts {
+		opt(val)
+	}
+}
+
+func Server(cfg *config.Config, opts ...ServerOpts) (srv *smtp.Server, err error) {
+	client, err := factory.NewClient(cfg)
+	if err != nil {
+		return
+	}
+	be := &Backend{Client: client}
+	applyServerOpts(be, opts...)
 	srv = smtp.NewServer(be)
 
 	srv.Addr = cfg.Addr
@@ -129,10 +152,9 @@ func Server(cfg *config.Config) (srv *smtp.Server, err error) {
 	srv.Name = cfg.Name
 	srv.ReadTimeout = time.Duration(cfg.ReadTimeout)
 	srv.WriteTimeout = time.Duration(cfg.WriteTimeout)
-	srv.MaxMessageBytes = 1024 * 1024
+	srv.MaxMessageBytes = int(cfg.MaxMessageBytes)
 	srv.MaxRecipients = 50
 	srv.AllowInsecureAuth = true
-	srv.Domain = cfg.Host
 
 	if cfg.User != "" && len(cfg.BcryptHash) > 0 && len(cfg.Password) == 0 {
 		srv.EnableAuth("CRAM-MD5", NewCramMD5Server(cfg.User, string(cfg.BcryptHash)))
@@ -178,7 +200,61 @@ func Server(cfg *config.Config) (srv *smtp.Server, err error) {
 			Rand:               rand.Reader,
 			InsecureSkipVerify: true, // test server certificate is not trusted.
 		}
+		applyServerOpts(srv.TLSConfig, opts...)
 	}
 
+	applyServerOpts(be, opts...)
 	return
+}
+
+func SplitAddr(addr string) (host string, port int) {
+	port = 25
+	host, portStr, _ := net.SplitHostPort(addr)
+	if len(portStr) > 0 {
+		tmp, err := strconv.ParseUint(portStr, 10, 16)
+		if err != nil {
+			return
+		}
+		port = int(tmp)
+	}
+	return
+}
+
+func StartSMTPServer(inCfg config.Config, myLog *log.Logger, clientFn func(srv *smtp.Server), sopts ...ServerOpts) error {
+	if myLog == nil {
+		myLog = log.Default()
+	}
+	scfg, err := config.Configure(inCfg)
+	if err != nil {
+		return fmt.Errorf("Unexpected error: %s", err)
+	}
+	srv, err := Server(scfg, sopts...)
+	if err != nil {
+		return fmt.Errorf("unexpected error: %s", err)
+	}
+	if scfg.Debug != "" {
+		srv.Debug, err = os.Open(scfg.Debug)
+		if err != nil {
+			srv.Debug = os.Stderr
+		}
+	}
+	defer func() {
+		if srv.Debug != nil {
+			srv.Debug.(io.WriteCloser).Close()
+		}
+	}()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		wg.Done()
+		err = srv.ListenAndServe()
+		if err != nil {
+			myLog.Printf("SMTP server error: %s", err)
+		}
+	}()
+	wg.Wait()
+	defer srv.Close()
+	clientFn(srv)
+	return nil
 }

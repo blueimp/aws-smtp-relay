@@ -18,8 +18,8 @@ builds:
       - arm64
 #      - 386
     goarm:
-      - 6
-      - 7
+      - "6"
+      - "7"
     main: ./
     binary: aws-smtp-relay
     tags:

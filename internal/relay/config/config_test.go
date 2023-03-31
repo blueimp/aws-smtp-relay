@@ -58,6 +58,7 @@ func TestConfigureWithBcryptHash(t *testing.T) {
 	sampleHash := "$2y$10$85/eICRuwBwutrou64G5HeoF3Ek/qf1YKPLba7ckiMxUTAeLIeyaC"
 	os.Setenv("BCRYPT_HASH", sampleHash)
 	cfg, err := Configure()
+	os.Unsetenv("BCRYPT_HASH")
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -69,6 +70,7 @@ func TestConfigureWithBcryptHash(t *testing.T) {
 func TestConfigureWithPassword(t *testing.T) {
 	os.Setenv("PASSWORD", "password")
 	cfg, err := Configure()
+	os.Unsetenv("PASSWORD")
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}

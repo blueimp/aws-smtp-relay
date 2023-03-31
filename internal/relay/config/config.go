@@ -12,22 +12,24 @@ import (
 )
 
 type Config struct {
-	Addr         string
-	Name         string
-	Host         string
-	ReadTimeout  int64
-	WriteTimeout int64
-	CertFile     string
-	KeyFile      string
-	StartTLSStr  string
-	OnlyTLSStr   string
-	RelayAPI     string
-	SetName      string
-	Ips          string
-	User         string
-	IpMap        map[string]bool
-	BcryptHash   []byte
-	Password     []byte
+	Addr            string
+	Name            string
+	Host            string
+	ReadTimeout     int64
+	WriteTimeout    int64
+	MaxMessageBytes uint32
+	CertFile        string
+	KeyFile         string
+	StartTLSStr     string
+	OnlyTLSStr      string
+	RelayAPI        string
+	SetName         string
+	Ips             string
+	User            string
+	Debug           string
+	IpMap           map[string]bool
+	BcryptHash      []byte
+	Password        []byte
 
 	AllowFrom       string
 	AllowFromRegExp *regexp.Regexp
@@ -60,7 +62,9 @@ func initCliArgs() *Config {
 	pflag.StringVarP(&cfg.AllowFrom, "allowFrom", "l", "", "Allowed sender emails regular expression")
 	pflag.StringVarP(&cfg.DenyTo, "denyTo", "d", "", "Denied recipient emails regular expression")
 	pflag.Int64VarP(&cfg.ReadTimeout, "readTimeout", "", int64(1*time.Minute), "Read timeout in seconds")
-	pflag.Int64VarP(&cfg.WriteTimeout, "writeTimeout", "", int64(1*time.Minute), "Read timeout in seconds")
+	pflag.Int64VarP(&cfg.WriteTimeout, "writeTimeout", "", int64(1*time.Minute), "Write timeout in seconds")
+	pflag.Uint32VarP(&cfg.MaxMessageBytes, "maxMessageBytes", "", 10*1024*1024, "Max Session Size")
+	pflag.StringVarP(&cfg.Debug, "debug", "", "", "Debug File")
 	return &cfg
 }
 
@@ -100,6 +104,24 @@ func merge(dominator, defaults Config) Config {
 	if dominator.DenyTo == "" {
 		dominator.DenyTo = defaults.DenyTo
 	}
+	if dominator.ReadTimeout == 0 {
+		dominator.ReadTimeout = defaults.ReadTimeout
+	}
+	if dominator.WriteTimeout == 0 {
+		dominator.WriteTimeout = defaults.WriteTimeout
+	}
+	if dominator.MaxMessageBytes == 0 {
+		dominator.MaxMessageBytes = defaults.MaxMessageBytes
+	}
+	if dominator.Debug == "" {
+		dominator.Debug = defaults.Debug
+	}
+	if len(dominator.Password) == 0 {
+		dominator.Password = defaults.Password
+	}
+	if len(dominator.BcryptHash) == 0 {
+		dominator.BcryptHash = defaults.BcryptHash
+	}
 	return dominator
 }
 
@@ -131,8 +153,14 @@ func Configure(clis ...Config) (*Config, error) {
 			cli.IpMap[ip] = true
 		}
 	}
-	cli.BcryptHash = []byte(os.Getenv("BCRYPT_HASH"))
-	cli.Password = []byte(os.Getenv("PASSWORD"))
+	bh, ok := os.LookupEnv("BCRYPT_HASH")
+	if ok {
+		cli.BcryptHash = []byte(bh)
+	}
+	pw, ok := os.LookupEnv("PASSWORD")
+	if ok {
+		cli.Password = []byte(pw)
+	}
 
 	return &cli, nil
 }
