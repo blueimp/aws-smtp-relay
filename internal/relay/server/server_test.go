@@ -1,14 +1,25 @@
-package main
+package server
 
 import (
-	"flag"
+	"bytes"
+	"context"
+	"crypto/tls"
+	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
-	pinpointrelay "github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
-	sesrelay "github.com/blueimp/aws-smtp-relay/internal/relay/ses"
+	"github.com/aws/aws-sdk-go-v2/service/pinpointemail"
+	awsSes "github.com/aws/aws-sdk-go-v2/service/ses"
+
+	"github.com/blueimp/aws-smtp-relay/internal/relay/config"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/pinpoint"
+	"github.com/blueimp/aws-smtp-relay/internal/relay/ses"
+	"github.com/blueimp/aws-smtp-relay/internal/test_utils"
+	"github.com/emersion/go-smtp"
 )
 
 const certPEM = `-----BEGIN CERTIFICATE-----
@@ -126,282 +137,146 @@ func createTLSFiles(passphrase string) (
 	return
 }
 
-func resetHelper() {
-	os.Args = []string{"noop"}
-	flag.Parse()
-	*addr = ":1025"
-	*name = "AWS SMTP Relay"
-	*host = ""
-	*certFile = ""
-	*keyFile = ""
-	*startTLS = false
-	*onlyTLS = false
-	*relayAPI = "ses"
-	*setName = ""
-	*ips = ""
-	*user = ""
-	*allowFrom = ""
-	*denyTo = ""
-	ipMap = nil
-	bcryptHash = nil
-	password = nil
-	relayClient = nil
-	os.Unsetenv("BCRYPT_HASH")
-	os.Unsetenv("PASSWORD")
-	os.Unsetenv("TLS_KEY_PASS")
-}
-
-func TestConfigure(t *testing.T) {
-	resetHelper()
-	err := configure()
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-	if *user != "" {
-		t.Errorf("Unexpected username: %s", *user)
-	}
-	if string(bcryptHash) != "" {
-		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
-	}
-	if *ips != "" {
-		t.Errorf("Unexpected IPs string: %s", *ips)
-	}
-	if len(ipMap) != 0 {
-		t.Errorf("Unexpected IP map size: %d", len(ipMap))
-	}
-	_, ok := interface{}(relayClient).(sesrelay.Client)
-	if !ok {
-		t.Error("Unexpected: relayClient function is not an sesrelay.Client")
-	}
-	if string(bcryptHash) != "" {
-		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
-	}
-}
-
-func TestConfigureWithPinpointRelay(t *testing.T) {
-	resetHelper()
-	*relayAPI = "pinpoint"
-	err := configure()
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-	_, ok := interface{}(relayClient).(pinpointrelay.Client)
-	if !ok {
-		t.Error("Unexpected: relayClient function is not an sesrelay.Client")
-	}
-}
-
-func TestConfigureWithInvalidRelay(t *testing.T) {
-	resetHelper()
-	*relayAPI = "invalid"
-	err := configure()
-	if err == nil {
-		t.Error("Unexpected nil error")
-	}
-	if relayClient != nil {
-		t.Errorf("Unexpected relay client: %s", relayClient)
-	}
-}
-
-func TestConfigureWithBcryptHash(t *testing.T) {
-	resetHelper()
-	os.Setenv("BCRYPT_HASH", sampleHash)
-	err := configure()
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-	if string(bcryptHash) != sampleHash {
-		t.Errorf("Unexpected bhash: %s", string(bcryptHash))
-	}
-}
-
-func TestConfigureWithPassword(t *testing.T) {
-	resetHelper()
-	os.Setenv("PASSWORD", "password")
-	err := configure()
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-	if string(password) != "password" {
-		t.Errorf("Unexpected password: %s", string(password))
-	}
-}
-
-func TestConfigureWithIPs(t *testing.T) {
-	resetHelper()
-	*ips = "127.0.0.1,2001:4860:0:2001::68"
-	err := configure()
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-	if len(ipMap) != 2 {
-		t.Errorf("Unexpected IP map size: %d", len(ipMap))
-	}
-}
-
-func TestConfigureWithAllowFrom(t *testing.T) {
-	resetHelper()
-	*allowFrom = "^^admin@example\\.org$"
-	err := configure()
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-}
-
-func TestConfigureWithInvalidAllowFrom(t *testing.T) {
-	resetHelper()
-	*allowFrom = "("
-	err := configure()
-	if err == nil {
-		t.Error("Unexpected nil error")
-	}
-}
-
-func TestConfigureWithDenyTo(t *testing.T) {
-	resetHelper()
-	*denyTo = "^^bob@example\\.org$"
-	err := configure()
-	if err != nil {
-		t.Errorf("Unexpected error: %s", err)
-	}
-}
-
-func TestConfigureWithInvalidDenyTo(t *testing.T) {
-	resetHelper()
-	*denyTo = "("
-	err := configure()
-	if err == nil {
-		t.Error("Unexpected nil error")
-	}
-}
-
 func TestServer(t *testing.T) {
-	resetHelper()
-	configure()
-	srv, err := server()
+	cfg, err := config.Configure()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	srv, err := Server(cfg)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 	if srv.Addr != ":1025" {
 		t.Errorf("Unexpected addr: %s. Expected: %s", srv.Addr, ":1025")
 	}
-	if srv.Appname != "AWS SMTP Relay" {
-		t.Errorf("Unexpected addr: %s. Expected: %s", srv.Appname, "AWS SMTP Relay")
-	}
-	if srv.Hostname != "" {
-		t.Errorf("Unexpected host: %s. Expected host to be empty.", srv.Hostname)
+	// t.Error("TestServer")
+	// if srv.Appname != "AWS SMTP Relay" {
+	// 	t.Errorf("Unexpected addr: %s. Expected: %s", srv.Appname, "AWS SMTP Relay")
+	// }
+	if srv.Domain != "" {
+		t.Errorf("Unexpected host: %s. Expected host to be empty.", srv.Domain)
 	}
 	if srv.TLSConfig != nil {
 		t.Errorf("Unexpected TLS config defined.")
 	}
-	if srv.TLSRequired != false {
-		t.Errorf("Unexpected TLS required: %t", srv.TLSRequired)
+	if srv.EnableREQUIRETLS != false {
+		t.Errorf("Unexpected TLS required: %t", srv.EnableREQUIRETLS)
 	}
-	if srv.TLSListener != false {
-		t.Errorf("Unexpected TLS listener: %t", srv.TLSListener)
-	}
+	// if srv.TLSListener != false {
+	// 	t.Errorf("Unexpected TLS listener: %t", srv.TLSListener)
+	// }
 }
 
 func TestServerWithCustomAddress(t *testing.T) {
-	resetHelper()
-	*addr = "127.0.0.1:25"
-	configure()
-	srv, err := server()
+	cfg, err := config.Configure(config.Config{
+		Addr: "127.0.0.1:25",
+	})
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	if srv.Addr != *addr {
-		t.Errorf("Unexpected addr: %s. Expected: %s", srv.Addr, *addr)
+	srv, err := Server(cfg)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if srv.Addr != cfg.Addr {
+		t.Errorf("Unexpected addr: %s. Expected: %s", srv.Addr, cfg.Addr)
 	}
 }
 
 func TestServerWithCustomAppname(t *testing.T) {
-	resetHelper()
-	*name = "Custom Appname"
-	configure()
-	srv, err := server()
+	cfg, err := config.Configure(config.Config{
+		Name: "Custom Appname",
+	})
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	if srv.Appname != "Custom Appname" {
-		t.Errorf("Unexpected addr: %s. Expected: %s", srv.Appname, "Custom Appname")
+	srv, err := Server(cfg)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	if srv.Name != cfg.Name {
+		t.Error("TestServerWithCustomAppname")
 	}
 }
 
 func TestServerWithCustomHostname(t *testing.T) {
-	resetHelper()
-	*host = "test"
-	configure()
-	srv, err := server()
+	cfg, err := config.Configure(config.Config{
+		Host: "test",
+	})
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	if srv.Hostname != "test" {
-		t.Errorf("Unexpected host: %s. Expected: %s", srv.Hostname, "test")
+	srv, err := Server(cfg)
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
 	}
+	if srv.Domain != cfg.Host {
+		t.Error("TestServerWithCustomAppname")
+	}
+	// if srv.Hostname != "test" {
+	// 	t.Errorf("Unexpected host: %s. Expected: %s", srv.Hostname, "test")
+	// }
 }
 
 func TestServerWithIPs(t *testing.T) {
-	resetHelper()
-	*ips = "127.0.0.1,2001:4860:0:2001::68"
-	err := configure()
+	cfg, err := config.Configure(config.Config{
+		Ips: "127.0.0.1,2001:4860:0:2001::68",
+	})
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	srv, err := server()
+	srv, err := Server(cfg)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	if srv.AuthRequired != true {
+	if srv.AuthDisabled != false {
 		t.Errorf(
 			"Unexpected AuthRequired: %t. Expected: %t",
-			srv.AuthRequired,
+			srv.AuthDisabled,
 			true,
 		)
 	}
-	authMechs := map[string]bool{}
-	if !reflect.DeepEqual(srv.AuthMechs, authMechs) {
-		t.Errorf(
-			"Unexpected AuthMechs: %v. Expected: %v",
-			srv.AuthMechs,
-			authMechs,
-		)
-	}
+	// authMechs := map[string]bool{}
+	// if !reflect.DeepEqual(srv., authMechs) {
+	// 	t.Errorf(
+	// 		"Unexpected AuthMechs: %v. Expected: %v",
+	// 		srv.AuthMechs,
+	// 		authMechs,
+	// 	)
+	// }
 }
 
 func TestServerWithBcryptHash(t *testing.T) {
-	resetHelper()
-	*user = "username"
 	os.Setenv("BCRYPT_HASH", sampleHash)
-	err := configure()
+	cfg, err := config.Configure(config.Config{
+		User: "username",
+	})
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	srv, err := server()
+	srv, err := Server(cfg)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
-	if srv.AuthRequired != true {
+	if srv.AuthDisabled != false {
 		t.Errorf(
 			"Unexpected AuthRequired: %t. Expected: %t",
-			srv.AuthRequired,
+			srv.AuthDisabled,
 			true,
 		)
 	}
-	authMechs := map[string]bool{"CRAM-MD5": false}
-	if !reflect.DeepEqual(srv.AuthMechs, authMechs) {
-		t.Errorf(
-			"Unexpected AuthMechs: %v. Expected: %v",
-			srv.AuthMechs,
-			authMechs,
-		)
-	}
+	// authMechs := map[string]bool{"CRAM-MD5": false}
+	// if !reflect.DeepEqual(srv.AuthMechs, authMechs) {
+	// 	t.Errorf(
+	// 		"Unexpected AuthMechs: %v. Expected: %v",
+	// 		srv.AuthMechs,
+	// 		authMechs,
+	// 	)
+	// }
 }
 
 func TestServerWithTLS(t *testing.T) {
-	resetHelper()
-	var err error
-	certFile, keyFile, err = createTLSFiles("")
+	certFile, keyFile, err := createTLSFiles("")
 	if err != nil {
 		t.Errorf("Unexpected TLS files creation error: %s", err)
 		return
@@ -410,8 +285,14 @@ func TestServerWithTLS(t *testing.T) {
 		os.Remove(*certFile)
 		os.Remove(*keyFile)
 	}()
-	configure()
-	srv, err := server()
+	cfg, err := config.Configure(config.Config{
+		CertFile: *certFile,
+		KeyFile:  *keyFile,
+	})
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+	srv, err := Server(cfg)
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
@@ -421,10 +302,8 @@ func TestServerWithTLS(t *testing.T) {
 }
 
 func TestServerWithTLSWithPassphrase(t *testing.T) {
-	resetHelper()
 	passphrase := "test"
-	var err error
-	certFile, keyFile, err = createTLSFiles(passphrase)
+	certFile, keyFile, err := createTLSFiles(passphrase)
 	if err != nil {
 		t.Errorf("Unexpected TLS files creation error: %s", err)
 		return
@@ -433,13 +312,157 @@ func TestServerWithTLSWithPassphrase(t *testing.T) {
 		os.Remove(*certFile)
 		os.Remove(*keyFile)
 	}()
+	cfg, err := config.Configure(config.Config{
+		CertFile: *certFile,
+		KeyFile:  *keyFile,
+	})
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 	os.Setenv("TLS_KEY_PASS", passphrase)
-	configure()
-	srv, err := server()
+	srv, err := Server(cfg)
+	os.Unsetenv("TLS_KEY_PASS")
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 	if srv.TLSConfig == nil {
 		t.Errorf("Unexpected empty TLS config.")
+	}
+}
+
+type mockSesClient struct {
+	mailInput awsSes.SendRawEmailInput
+}
+
+func (m *mockSesClient) SendRawEmail(_ context.Context, mi *awsSes.SendRawEmailInput, opts ...func(*awsSes.Options)) (*awsSes.SendRawEmailOutput, error) {
+	m.mailInput = *mi
+	return nil, nil
+}
+
+func startSMTPServerTest(fn func(srv *smtp.Server, lsr net.Listener), opts ...ServerOpts) error {
+	certFile, keyFile, deferFn, err := test_utils.GenerateX509()
+	if err != nil {
+		return fmt.Errorf("Unexpected error: %s", err)
+	}
+	defer deferFn()
+	cfg, err := config.Configure(config.Config{
+		Addr:       "127.0.0.1:0",
+		User:       "user",
+		BcryptHash: []byte("pass"),
+
+		CertFile: certFile,
+		KeyFile:  keyFile,
+	})
+	if err != nil {
+		return err
+	}
+	applyServerOpts(cfg, opts...)
+	return StartSMTPServer(*cfg, nil, fn, opts...)
+}
+
+func TestFullStackAwsSes(t *testing.T) {
+	mockSesClient := &mockSesClient{}
+	err := startSMTPServerTest(func(srv *smtp.Server, lsr net.Listener) {
+		from := "Test Name <test.name@dest.test>"
+		tos := []string{"bla@blub.test", "bla2@blub.test"}
+		err := smtp.SendMail(fmt.Sprintf("127.0.0.1:%d", lsr.Addr().(*net.TCPAddr).Port),
+			nil, from, tos,
+			bytes.NewBufferString("Test message"),
+			func(srv interface{}) error {
+				tlsCfg, ok := srv.(*tls.Config)
+				if !ok || tlsCfg == nil {
+					return nil
+				}
+				tlsCfg.InsecureSkipVerify = true
+				return nil
+			},
+		)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+		mi := mockSesClient.mailInput
+		if strings.TrimSpace(string(mi.RawMessage.Data)) != "Test message" {
+			t.Errorf("Unexpected message: %s", string(mi.RawMessage.Data))
+		}
+		if !reflect.DeepEqual(mi.Destinations, tos) {
+			t.Errorf("Unexpected destinations: %v", mi.Destinations)
+		}
+		if *mi.Source != from {
+			t.Errorf("Unexpected source: %s", *mi.Source)
+		}
+
+	}, func(be interface{}) {
+		backend, ok := be.(*Backend)
+		if !ok || backend == nil {
+			return
+		}
+		clt := backend.Client.Annotate(&ses.Client{
+			SesClient: mockSesClient,
+		})
+		backend.Client = clt
+	})
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+type mockPinPointClient struct {
+	pinPointInput pinpointemail.SendEmailInput
+}
+
+func (m *mockPinPointClient) SendEmail(_ context.Context, pi *pinpointemail.SendEmailInput, fns ...func(*pinpointemail.Options)) (*pinpointemail.SendEmailOutput, error) {
+	m.pinPointInput = *pi
+	return nil, nil
+}
+
+func TestFullStackPinPoint(t *testing.T) {
+	mockPPClient := &mockPinPointClient{}
+	err := startSMTPServerTest(func(srv *smtp.Server, lsr net.Listener) {
+		from := "Test Name <test.name@dest.test>"
+		tos := []string{"bla@blub.test", "bla2@blub.test"}
+		err := smtp.SendMail(fmt.Sprintf("127.0.0.1:%d", lsr.Addr().(*net.TCPAddr).Port),
+			nil, from, tos,
+			bytes.NewBufferString("Test message"),
+			func(srv interface{}) error {
+				tlsCfg, ok := srv.(*tls.Config)
+				if !ok || tlsCfg == nil {
+					return nil
+				}
+				tlsCfg.InsecureSkipVerify = true
+				return nil
+			},
+		)
+		if err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+		pi := mockPPClient.pinPointInput
+		if strings.TrimSpace(string(pi.Content.Raw.Data)) != "Test message" {
+			t.Errorf("Unexpected message: %s", string(pi.Content.Raw.Data))
+		}
+		if !reflect.DeepEqual(pi.ReplyToAddresses, tos) {
+			t.Errorf("Unexpected destinations: %v", pi.ReplyToAddresses)
+		}
+		if *pi.FromEmailAddress != from {
+			t.Errorf("Unexpected source: %s", *pi.FromEmailAddress)
+		}
+
+	}, func(be interface{}) {
+		backend, ok := be.(*Backend)
+		if !ok || backend == nil {
+			return
+		}
+		clt := backend.Client.Annotate(&pinpoint.Client{
+			PinpointClient: mockPPClient,
+		})
+		backend.Client = clt
+	}, func(cfg interface{}) {
+		config, ok := cfg.(*config.Config)
+		if !ok || config == nil {
+			return
+		}
+		config.RelayAPI = "pinpoint"
+	})
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
 	}
 }

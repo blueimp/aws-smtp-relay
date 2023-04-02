@@ -1,0 +1,80 @@
+---
+## Docker image configuration
+##
+image:
+  repository: ghcr.io/mabels/aws-smtp-relay
+  ## Tag to override with, will default to the application version.
+  ##
+  tag: latest
+  pullPolicy: IfNotPresent
+  ## Optionally specify an array of imagePullSecrets.
+  ## Secrets must be manually created in the namespace.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+  ##
+  #pullSecrets:
+  #   - myRegistryKeySecretName
+
+## Override part of the installed name, will still keep release name.
+##
+# nameOverride: ""
+
+## Override the full name of the installed chart.
+##
+# fullnameOverride: ""
+
+awsSmtpRelay:
+  region: "us-east-1"
+  observer:
+    enable: false
+    SQS:
+      name: ""
+      timeout: 10
+      maxMessages: 10
+      waitTime: 10
+    bucket:
+      name: ""
+      keyPrefix: ""
+    smtp:
+      host: ""
+      port: 25252
+      connectionTLS: false
+      forceSTARTTLS: true
+      insecureTLS: true
+      identity: ""
+      user: ""
+      pass: ""
+      myName: "AWS-SMTP-Relay-Observer"
+  env: []
+  relay:
+    addr:
+      host: ""
+      port: 10250
+    name: "AWS SMTP Relay"
+    host: ""
+    certFile: ""
+    keyFile: ""
+    startTLS: false
+    onlyTLS: false
+    relayAPI: ses
+    setName: ""
+    ips: ""
+    user: ""
+    allowFrom: ""
+    denyTo: ""
+    service:
+      type: ClusterIP
+
+  serviceAccount:
+     create: false
+     name: "default"
+     annotations: {}
+  strategy: {}
+  livenessProbe: {}
+  readinessProbe: {}
+  securityContext: {}
+  annotations: {}
+  tolerations: {}
+  affinity: {}
+  labels: {}
+  nodeSelector: {}
+  resources: {}
