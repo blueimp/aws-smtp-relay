@@ -160,8 +160,9 @@ func (aso *AwsSesObserver) sendMail(asn *RetryAwsSesNotification, out *s3.GetObj
 		return nil, true, err, stringPtr("Dial")
 	}
 	defer func() {
-		c.Close()
-		c.Quit()
+		if err != nil {
+			c.Close()
+		}
 	}()
 	myName := aso.Config.Smtp.MyName
 	err = c.Hello(myName)
@@ -191,7 +192,7 @@ func (aso *AwsSesObserver) sendMail(asn *RetryAwsSesNotification, out *s3.GetObj
 	if err = c.Mail(from, &smtp.MailOptions{}); err != nil {
 		return nil, retry(err), err, stringPtr("Mail")
 	}
-	rcpt := make([]string, 0)
+	rcpt := make([]string, 0, len(asn.Receipt.Recipients))
 	for _, addr := range asn.Receipt.Recipients {
 		if err = c.Rcpt(addr); err == nil {
 			rcpt = append(rcpt, addr)
@@ -200,21 +201,24 @@ func (aso *AwsSesObserver) sendMail(asn *RetryAwsSesNotification, out *s3.GetObj
 	if len(rcpt) == 0 {
 		return rcpt, false, fmt.Errorf("no valid recipients"), stringPtr("Rcpt")
 	}
-	w, err := c.Data()
-	if err != nil {
-		return rcpt, retry(err), err, stringPtr("Data")
+	{
+		w, err := c.Data()
+		if err != nil {
+			return rcpt, retry(err), err, stringPtr("w.Data")
+		}
+		_, err = io.Copy(w, out.Body)
+		if err != nil {
+			w.Close()
+			return rcpt, retry(err), err, stringPtr("w.Copy")
+		}
+		err = w.Close()
+		if err != nil {
+			return rcpt, retry(err), err, stringPtr("w.Close")
+		}
 	}
 
-	_, err = io.Copy(w, out.Body)
-	if err != nil {
-		return rcpt, retry(err), err, stringPtr("Copy")
-	}
-
-	err = w.Close()
-	if err != nil {
-		return rcpt, retry(err), err, stringPtr("Close")
-	}
-	return rcpt, false, c.Quit(), stringPtr("Quit")
+	err = c.Quit()
+	return rcpt, false, err, stringPtr("Quit")
 }
 
 func (aso *AwsSesObserver) deleteMessage(asn *RetryAwsSesNotification, msg *sqsTypes.Message) error {
@@ -336,6 +340,8 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 					var rcpt []string
 					var component *string
 					rcpt, retry, err, component = aso.sendMail(&asn, out)
+					// in any case close the s3 object
+					out.Body.Close()
 					from, _ := asn.fromAddress()
 					mailComponent := "aso/Sendmail"
 					if err != nil {
@@ -343,14 +349,14 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 					}
 					if !retry && err != nil {
 						// abort send if error is not retryable
-						LogError(mailComponent, "msg=%s abort=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), from, asn.Mail.CommonHeaders.To)
+						LogError(mailComponent, "msg=%s abort=%v from=%s to=%v", asn.Mail.MessageId, err.Error(), from, asn.Mail.CommonHeaders.To)
 					} else {
 						if err != nil {
 							// retryable error
-							err = LogError(mailComponent, "msg=%s err=%v from=%v to=%v", asn.Mail.MessageId, err.Error(), from, rcpt)
+							err = LogError(mailComponent, "msg=%s err=%v from=%s to=%v", asn.Mail.MessageId, err.Error(), from, rcpt)
 						} else {
 							// all good
-							Log(mailComponent, "sent msg=%s from=%v to=%v", asn.Mail.MessageId, from, rcpt)
+							Log(mailComponent, "sent msg=%s from=%s to=%v", asn.Mail.MessageId, from, rcpt)
 						}
 					}
 					if retry {

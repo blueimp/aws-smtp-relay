@@ -21,9 +21,18 @@ type SESEmailClient interface {
 type Client struct {
 	SesClient       SESEmailClient
 	setName         *string
-	allowFromRegExp *regexp.Regexp
-	denyToRegExp    *regexp.Regexp
+	AllowFromRegExp *regexp.Regexp
+	DenyToRegExp    *regexp.Regexp
 	maxMessageSize  uint
+}
+
+func (c Client) FilterFrom(from string) error {
+	_, _, err := filter.FilterAddresses(from, nil, c.AllowFromRegExp, c.DenyToRegExp)
+	return err
+}
+
+func (c Client) FilterTo(from string, to []string) ([]string, []string, error) {
+	return filter.FilterAddresses(from, to, c.AllowFromRegExp, c.DenyToRegExp)
 }
 
 func (c Client) Annotate(_clt relay.Client) relay.Client {
@@ -32,11 +41,19 @@ func (c Client) Annotate(_clt relay.Client) relay.Client {
 	if clt.SesClient != nil {
 		pclt = clt.SesClient
 	}
+	allowRe := c.AllowFromRegExp
+	if clt.AllowFromRegExp != nil {
+		allowRe = clt.AllowFromRegExp
+	}
+	denyRe := c.DenyToRegExp
+	if clt.DenyToRegExp != nil {
+		denyRe = clt.DenyToRegExp
+	}
 	return &Client{
 		SesClient:       pclt,
 		setName:         c.setName,
-		allowFromRegExp: c.allowFromRegExp,
-		denyToRegExp:    c.denyToRegExp,
+		AllowFromRegExp: allowRe,
+		DenyToRegExp:    denyRe,
 		maxMessageSize:  c.maxMessageSize,
 	}
 }
@@ -51,8 +68,8 @@ func (c Client) Send(
 	allowedRecipients, deniedRecipients, err := filter.FilterAddresses(
 		from,
 		to,
-		c.allowFromRegExp,
-		c.denyToRegExp,
+		c.AllowFromRegExp,
+		c.DenyToRegExp,
 	)
 	if err != nil {
 		internal.Log(origin, from, deniedRecipients, err)
@@ -92,7 +109,7 @@ func New(
 		maxMessageSize:  maxMessageSize,
 		SesClient:       ses.New(ses.Options{}),
 		setName:         configurationSetName,
-		allowFromRegExp: allowFromRegExp,
-		denyToRegExp:    denyToRegExp,
+		AllowFromRegExp: allowFromRegExp,
+		DenyToRegExp:    denyToRegExp,
 	}
 }

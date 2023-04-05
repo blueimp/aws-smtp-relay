@@ -57,8 +57,8 @@ func sendHelper(
 		c := Client{
 			PinpointClient:  &mockPinpointEmailClient{},
 			setName:         configurationSetName,
-			allowFromRegExp: allowFromRegExp,
-			denyToRegExp:    denyToRegExp,
+			AllowFromRegExp: allowFromRegExp,
+			DenyToRegExp:    denyToRegExp,
 			maxMessageSize:  1024 * 1024,
 		}
 		testData.err = apiErr
@@ -262,10 +262,10 @@ func TestNew(t *testing.T) {
 	if client.setName != &setName {
 		t.Errorf("Unexpected setName: %s", *client.setName)
 	}
-	if client.allowFromRegExp != allowFromRegExp {
-		t.Errorf("Unexpected allowFromRegExp: %s", client.allowFromRegExp)
+	if client.AllowFromRegExp != allowFromRegExp {
+		t.Errorf("Unexpected allowFromRegExp: %s", client.AllowFromRegExp)
 	}
-	if client.denyToRegExp != denyToRegExp {
-		t.Errorf("Unexpected denyToRegExp: %s", client.denyToRegExp)
+	if client.DenyToRegExp != denyToRegExp {
+		t.Errorf("Unexpected denyToRegExp: %s", client.DenyToRegExp)
 	}
 }

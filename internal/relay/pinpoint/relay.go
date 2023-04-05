@@ -21,9 +21,18 @@ type PinpointEmailClient interface {
 type Client struct {
 	PinpointClient  PinpointEmailClient
 	setName         *string
-	allowFromRegExp *regexp.Regexp
-	denyToRegExp    *regexp.Regexp
+	AllowFromRegExp *regexp.Regexp
+	DenyToRegExp    *regexp.Regexp
 	maxMessageSize  uint
+}
+
+func (c Client) FilterFrom(from string) error {
+	_, _, err := filter.FilterAddresses(from, nil, c.AllowFromRegExp, nil)
+	return err
+}
+
+func (c Client) FilterTo(from string, to []string) ([]string, []string, error) {
+	return filter.FilterAddresses(from, to, c.AllowFromRegExp, c.DenyToRegExp)
 }
 
 func (c Client) Annotate(rclt relay.Client) relay.Client {
@@ -35,8 +44,8 @@ func (c Client) Annotate(rclt relay.Client) relay.Client {
 	return &Client{
 		PinpointClient:  pclt,
 		setName:         c.setName,
-		allowFromRegExp: c.allowFromRegExp,
-		denyToRegExp:    c.denyToRegExp,
+		AllowFromRegExp: c.AllowFromRegExp,
+		DenyToRegExp:    c.DenyToRegExp,
 		maxMessageSize:  c.maxMessageSize,
 	}
 }
@@ -51,8 +60,8 @@ func (c Client) Send(
 	allowedRecipients, deniedRecipients, err := filter.FilterAddresses(
 		from,
 		to,
-		c.allowFromRegExp,
-		c.denyToRegExp,
+		c.AllowFromRegExp,
+		c.DenyToRegExp,
 	)
 	if err != nil {
 		internal.Log(origin, from, deniedRecipients, err)
@@ -90,8 +99,8 @@ func New(
 	return Client{
 		PinpointClient:  pinpointemail.New(pinpointemail.Options{}),
 		setName:         configurationSetName,
-		allowFromRegExp: allowFromRegExp,
-		denyToRegExp:    denyToRegExp,
+		AllowFromRegExp: allowFromRegExp,
+		DenyToRegExp:    denyToRegExp,
 		maxMessageSize:  maxMessageSize,
 	}
 }

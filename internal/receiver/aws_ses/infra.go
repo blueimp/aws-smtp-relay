@@ -51,6 +51,7 @@ func (s *awsSesSmtp) DialTLS(addr string, ctls *tls.Config) (SMTPClient, error) 
 }
 
 type SMTPClient interface {
+	// smtp.Client
 	Close() error
 	Hello(host string) error
 	StartTLS(config *tls.Config) error

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -791,6 +792,7 @@ func startSMTPServerTest(fn func(*smtp.Server, net.Listener)) error {
 		BcryptHash: []byte("pass"),
 		CertFile:   certFile,
 		KeyFile:    keyFile,
+		Debug:      "/dev/stderr",
 	})
 	if err != nil {
 		return err
@@ -801,7 +803,9 @@ func startSMTPServerTest(fn func(*smtp.Server, net.Listener)) error {
 			return
 		}
 		clt := backend.Client.Annotate(&ses.Client{
-			SesClient: &mockSesClient{},
+			SesClient:       &mockSesClient{},
+			DenyToRegExp:    regexp.MustCompile(`.*@deny\.com`),
+			AllowFromRegExp: regexp.MustCompile(`from@kaputt`),
 		})
 		backend.Client = clt
 	})
@@ -834,6 +838,7 @@ func TestRealSmtp(t *testing.T) {
 			"to@smtp.world",
 			"kaputt@smtp.world",
 		}
+		asn.Mail.CommonHeaders.From = []string{"<from@kaputt>"}
 		preFileId := test_utils.GetNextFileDescriptor()
 		rcpt, retry, err, _ := obs.sendMail(asn, s3GetObjectOutput("testBody"))
 		if test_utils.GetNextFileDescriptor() != preFileId {
@@ -889,6 +894,50 @@ func TestRealSmtpFromFail(t *testing.T) {
 		}
 		if err == nil {
 			t.Errorf("Unexpected error: %s", err)
+		}
+	})
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
+
+func TestRealSmtpToFail(t *testing.T) {
+	err := startSMTPServerTest(func(srv *smtp.Server, lsr net.Listener) {
+		for i := 0; i < 2; i++ {
+			cli := *FlagCliArgs
+			cli.EnableStr = "true"
+			cli.SQS.Name = "testQ"
+			cli.Bucket.Name = "bucket"
+			cli.Bucket.KeyPrefix = "prefix/"
+			cli.Smtp.Host = "127.0.0.1"
+			cli.Smtp.Port = lsr.Addr().(*net.TCPAddr).Port
+			t.Logf("Port: %d", cli.Smtp.Port)
+			cli.Smtp.Identity = "identity"
+			cli.Smtp.User = "user"
+			cli.Smtp.Pass = "pass"
+			cfg, err := ConfigureObserver(cli)
+			if err != nil {
+				t.Errorf("Unexpected error: %s", err)
+			}
+			obs, err := mockNewAWSSESObserver(cfg)
+			if err != nil {
+				t.Error(err)
+			}
+
+			obs.Smtp = &gosmtpSMTP{}
+			asn := setupAsn(obs)
+			asn.Receipt.Recipients = []string{
+				"deny@deny.com",
+			}
+			asn.Mail.CommonHeaders.From = []string{"<from@kaputt>"}
+			preFileId := test_utils.GetNextFileDescriptor()
+			_, _, err, val := obs.sendMail(asn, s3GetObjectOutput("testBody"))
+			if test_utils.GetNextFileDescriptor() != preFileId {
+				t.Errorf("File descriptor leak: %d", test_utils.GetNextFileDescriptor())
+			}
+			if err.Error() != "no valid recipients" {
+				t.Errorf("Unexpected error: %d:%s:%v", i, err, *val)
+			}
 		}
 	})
 	if err != nil {

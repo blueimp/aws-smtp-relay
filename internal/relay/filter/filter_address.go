@@ -26,11 +26,12 @@ func FilterAddresses(
 	allowFromRegExp *regexp.Regexp,
 	denyToRegExp *regexp.Regexp,
 ) (allowedRecipients []string, deniedRecipients []string, err error) {
-	allowedRecipients = []string{}
-	deniedRecipients = []string{}
 	if allowFromRegExp != nil && !allowFromRegExp.MatchString(from) {
 		err = ErrDeniedSender
 	}
+	allowedRecipients = []string{}
+	deniedRecipients = []string{}
+
 	for k := range to {
 		recipient := &(to)[k]
 		// Deny all recipients if the sender address is not allowed

@@ -8,6 +8,8 @@ import (
 
 type Client interface {
 	Annotate(clt Client) Client
+	FilterFrom(from string) error
+	FilterTo(from string, to []string) (allowedRecipients []string, deniedRecipients []string, err error)
 	Send(
 		origin net.Addr,
 		from string,

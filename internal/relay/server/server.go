@@ -55,11 +55,19 @@ func (s *Session) AuthPlain(username, password string) error {
 }
 
 func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
+	err := s.client.FilterFrom(from)
+	if err != nil {
+		return err
+	}
 	s.from = from
 	return nil
 }
 
 func (s *Session) Rcpt(to string) error {
+	_, _, err := s.client.FilterTo(s.from, []string{to})
+	if err != nil {
+		return err
+	}
 	s.to = append(s.to, to)
 	return nil
 }
@@ -232,14 +240,24 @@ func StartSMTPServer(inCfg config.Config, myLog *log.Logger, clientFn func(srv *
 	if err != nil {
 		return fmt.Errorf("unexpected error: %s", err)
 	}
+	needClose := false
 	if scfg.Debug != "" {
-		srv.Debug, err = os.Open(scfg.Debug)
-		if err != nil {
+		if strings.Contains(scfg.Debug, "stderr") {
 			srv.Debug = os.Stderr
+		} else if strings.Contains(scfg.Debug, "stdout") {
+			srv.Debug = os.Stdout
+		} else if scfg.Debug == "-" {
+			srv.Debug = os.Stdout
+		} else {
+			srv.Debug, err = os.Open(scfg.Debug)
+			if err != nil {
+				return err
+			}
+			needClose = true
 		}
 	}
 	defer func() {
-		if srv.Debug != nil {
+		if srv.Debug != nil && needClose {
 			srv.Debug.(io.WriteCloser).Close()
 		}
 	}()
