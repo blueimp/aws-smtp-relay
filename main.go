@@ -29,6 +29,7 @@ var (
 	user      = flag.String("u", "", "Authentication username")
 	allowFrom = flag.String("l", "", "Allowed sender emails regular expression")
 	denyTo    = flag.String("d", "", "Denied recipient emails regular expression")
+	roleArn   = flag.String("o", "", "Role to Assume, If empty it uses local credentials")
 )
 
 var ipMap map[string]bool
@@ -83,7 +84,7 @@ func configure() error {
 	case "pinpoint":
 		relayClient = pinpointrelay.New(setName, allowFromRegExp, denyToRegExp)
 	case "ses":
-		relayClient = sesrelay.New(setName, allowFromRegExp, denyToRegExp)
+		relayClient = sesrelay.New(setName, allowFromRegExp, denyToRegExp, roleArn)
 	default:
 		return errors.New("Invalid relay API: " + *relayAPI)
 	}

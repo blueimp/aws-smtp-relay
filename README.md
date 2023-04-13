@@ -112,6 +112,8 @@ Usage of aws-smtp-relay:
         Allowed sender emails regular expression
   -n string
         SMTP service name (default "AWS SMTP Relay")
+  -o string
+    	  Role to Assume, If empty it uses local credentials
   -r string
         Relay API to use (ses|pinpoint) (default "ses")
   -s    Require TLS via STARTTLS extension

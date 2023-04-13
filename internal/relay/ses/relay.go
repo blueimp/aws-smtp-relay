@@ -4,6 +4,9 @@ import (
 	"net"
 	"regexp"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/aws/aws-sdk-go/service/ses/sesiface"
@@ -54,11 +57,23 @@ func New(
 	configurationSetName *string,
 	allowFromRegExp *regexp.Regexp,
 	denyToRegExp *regexp.Regexp,
+	roleArn *string,
 ) Client {
 	return Client{
-		sesAPI:          ses.New(session.Must(session.NewSession())),
+		sesAPI:          ses.New(AssumeRoleAWS(*roleArn)),
 		setName:         configurationSetName,
 		allowFromRegExp: allowFromRegExp,
 		denyToRegExp:    denyToRegExp,
+	}
+}
+
+func AssumeRoleAWS(roleArn string) *session.Session {
+	var creds *credentials.Credentials
+	sess := session.Must(session.NewSession())
+	if regexp.MustCompile(`^arn:aws:iam::(.+):role/([^/]+)(/.+)?$`).MatchString(roleArn) {
+		creds = stscreds.NewCredentials(sess, roleArn)
+		return session.Must(session.NewSession(&aws.Config{Credentials: creds}))
+	} else {
+		return sess
 	}
 }
