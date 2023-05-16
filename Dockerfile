@@ -14,8 +14,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /bin/aws-smtp-relay
 
 FROM scratch
-COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /bin/aws-smtp-relay /bin/
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 USER 1001
-EXPOSE 587
 ENTRYPOINT ["aws-smtp-relay"]
