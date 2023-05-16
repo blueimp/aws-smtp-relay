@@ -30,7 +30,7 @@ var (
 	ips       = flag.String("i", LookupEnvOrString("ALLOWED_IPS", ""), "Allowed client IPs (comma-separated)")
 	user      = flag.String("u", LookupEnvOrString("AUTH_USERNAME", ""), "Authentication username")
 	allowFrom = flag.String("l", LookupEnvOrString("ALLOWED_SENDERS_REGEX", ""), "Allowed sender emails regular expression")
-	denyTo    = flag.String("d", LookupEnvOrString("DENIED_SENDERS_REGEX", ""), "Denied recipient emails regular expression")
+	denyTo    = flag.String("d", LookupEnvOrString("DENIED_RECIPIENTS_REGEX", ""), "Denied recipient emails regular expression")
 )
 
 var ipMap map[string]bool
