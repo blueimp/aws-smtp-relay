@@ -24,7 +24,7 @@ var (
 	certFile  = flag.String("c", LookupEnvOrString("CERT_FILE", ""), "TLS cert file")
 	keyFile   = flag.String("k", LookupEnvOrString("KEY_FILE", ""), "TLS key file")
 	startTLS  = flag.Bool("s", LookupEnvOrBool("REQUIRE_STARTTLS", false), "Require TLS via STARTTLS extension (TCP PASSTHROUGH)")
-	onlyTLS   = flag.Bool("t", LookupEnvOrBool("REQUIRE_TLS", false), "Listen for incoming TLS connections only")
+	onlyTLS   = flag.Bool("t", LookupEnvOrBool("REQUIRE_TLS", false), "Listen for incoming TLS connections only (false by default)")
 	relayAPI  = flag.String("r", LookupEnvOrString("RELAY_API", "ses"), "Relay API to use (ses|pinpoint)")
 	setName   = flag.String("e", LookupEnvOrString("SES_CONFIGURATION_SET_NAME", ""), "Amazon SES Configuration Set Name")
 	ips       = flag.String("i", LookupEnvOrString("ALLOWED_IPS", ""), "Allowed client IPs (comma-separated)")
