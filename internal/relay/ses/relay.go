@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"os"
 	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/service/ses"
@@ -106,8 +107,10 @@ func New(
 	maxMessageSize uint,
 ) Client {
 	return Client{
-		maxMessageSize:  maxMessageSize,
-		SesClient:       ses.New(ses.Options{}),
+		maxMessageSize: maxMessageSize,
+		SesClient: ses.New(ses.Options{
+			Region: os.Getenv("AWS_REGION"),
+		}),
 		setName:         configurationSetName,
 		AllowFromRegExp: allowFromRegExp,
 		DenyToRegExp:    denyToRegExp,
