@@ -25,7 +25,7 @@ func logHelper(addr net.Addr, from string, to []string, err error) (
 	os.Stdout = outWriter
 	os.Stderr = errWriter
 	func() {
-		Log(addr, from, to, err)
+		LogEmail(addr, from, to, err)
 		outWriter.Close()
 		errWriter.Close()
 	}()

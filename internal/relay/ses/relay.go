@@ -4,9 +4,9 @@ import (
 	"context"
 	"io"
 	"net"
-	"os"
 	"regexp"
 
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	sestypes "github.com/aws/aws-sdk-go-v2/service/ses/types"
 	"github.com/blueimp/aws-smtp-relay/internal"
@@ -73,7 +73,7 @@ func (c Client) Send(
 		c.DenyToRegExp,
 	)
 	if err != nil {
-		internal.Log(origin, from, deniedRecipients, err)
+		internal.LogEmail(origin, from, deniedRecipients, err)
 	}
 
 	if len(allowedRecipients) > 0 {
@@ -94,7 +94,7 @@ func (c Client) Send(
 		if sendErr != nil {
 			err = sendErr
 		}
-		internal.Log(origin, from, allowedRecipients, err)
+		internal.LogEmail(origin, from, allowedRecipients, err)
 	}
 	return err
 }
@@ -105,14 +105,16 @@ func New(
 	allowFromRegExp *regexp.Regexp,
 	denyToRegExp *regexp.Regexp,
 	maxMessageSize uint,
-) Client {
-	return Client{
-		maxMessageSize: maxMessageSize,
-		SesClient: ses.New(ses.Options{
-			Region: os.Getenv("AWS_REGION"),
-		}),
+) (*Client, error) {
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		return nil, internal.LogError("AwsSesObserver.getSqsClient", "error loading aws config, %s", err.Error())
+	}
+	return &Client{
+		maxMessageSize:  maxMessageSize,
+		SesClient:       ses.NewFromConfig(cfg),
 		setName:         configurationSetName,
 		AllowFromRegExp: allowFromRegExp,
 		DenyToRegExp:    denyToRegExp,
-	}
+	}, nil
 }

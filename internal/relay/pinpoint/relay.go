@@ -64,7 +64,7 @@ func (c Client) Send(
 		c.DenyToRegExp,
 	)
 	if err != nil {
-		internal.Log(origin, from, deniedRecipients, err)
+		internal.LogEmail(origin, from, deniedRecipients, err)
 	}
 
 	if len(allowedRecipients) > 0 {
@@ -84,7 +84,7 @@ func (c Client) Send(
 		if sendErr != nil {
 			err = sendErr
 		}
-		internal.Log(origin, from, allowedRecipients, err)
+		internal.LogEmail(origin, from, allowedRecipients, err)
 	}
 	return err
 }

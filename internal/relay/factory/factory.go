@@ -17,13 +17,14 @@ import (
 func NewClient(cfg *config.Config) (relay.Client, error) {
 
 	var client relay.Client
+	var err error
 	switch cfg.RelayAPI {
 	case "pinpoint":
 		client = pinpointrelay.New(&cfg.SetName, cfg.AllowFromRegExp, cfg.DenyToRegExp, uint(cfg.MaxMessageBytes))
 	case "ses":
-		client = sesrelay.New(&cfg.SetName, cfg.AllowFromRegExp, cfg.DenyToRegExp, uint(cfg.MaxMessageBytes))
+		client, err = sesrelay.New(&cfg.SetName, cfg.AllowFromRegExp, cfg.DenyToRegExp, uint(cfg.MaxMessageBytes))
 	default:
 		return nil, errors.New("Invalid relay API: " + cfg.RelayAPI)
 	}
-	return client, nil
+	return client, err
 }

@@ -17,6 +17,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/emersion/go-smtp"
+
+	"github.com/blueimp/aws-smtp-relay/internal"
 )
 
 type RetryAwsSesNotification struct {
@@ -41,7 +43,7 @@ func (aso *AwsSesObserver) getSqsClient(reset ...bool) (SQSClient, error) {
 	}
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		return nil, LogError("AwsSesObserver.getSqsClient", "error loading aws config, %s", err.Error())
+		return nil, internal.LogError("AwsSesObserver.getSqsClient", "error loading aws config, %s", err.Error())
 	}
 	aso.SQS.Client = sqs.NewFromConfig(cfg)
 	return aso.SQS.Client, nil
@@ -53,7 +55,7 @@ func (aso *AwsSesObserver) getS3Client(reset ...bool) (S3Client, error) {
 	}
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		return nil, LogError("AwsSesObserver.getSqsClient", "error loading aws config, %s", err.Error())
+		return nil, internal.LogError("AwsSesObserver.getSqsClient", "error loading aws config, %s", err.Error())
 	}
 	aso.S3Client = s3.NewFromConfig(cfg)
 	return aso.S3Client, nil
@@ -289,12 +291,12 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 		cnt = cnts[0]
 	}
 	var err error
-	Log("sqs/observe", "start observing %d messages", cnt)
+	internal.Log("sqs/observe", "start observing %d messages", cnt)
 	for i := 0; cnt < 0 || i < cnt; i++ {
 		var sqsClient SQSClient
 		sqsClient, err = aso.getSqsClient(false)
 		if err != nil {
-			err = LogError("sqs/getSqsClient", err.Error())
+			err = internal.LogError("sqs/getSqsClient", err.Error())
 			time.Sleep(1 * time.Second)
 			aso.getSqsClient(true)
 			continue
@@ -302,7 +304,7 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 		var msgResult *sqs.ReceiveMessageOutput
 		msgResult, err = sqsClient.ReceiveMessage(aso.Config.Context, &aso.SQS.MsgInputParams)
 		if err != nil {
-			err = LogError("sqs/receive", "error receiving messages, %v", err.Error())
+			err = internal.LogError("sqs/receive", "error receiving messages, %v", err.Error())
 			time.Sleep(1 * time.Second)
 			aso.getSqsClient(true)
 			continue
@@ -313,26 +315,26 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 				asm := AwsSesMessage{}
 				err = json.Unmarshal([]byte(*msg.Body), &asm)
 				if err != nil {
-					err = LogError("json/AwsSesMessage", err.Error())
+					err = internal.LogError("json/AwsSesMessage", err.Error())
 					continue
 				}
 				if asm.Type == "Notification" {
 					asn := RetryAwsSesNotification{}
 					err = json.Unmarshal([]byte(asm.Message), &asn)
 					if err != nil {
-						err = LogError("json/AwsSesNotification", err.Error())
+						err = internal.LogError("json/AwsSesNotification", err.Error())
 						errx := aso.deleteMessage(&asn, &msg)
 						if errx != nil {
-							LogError("json/AwsSesNotification/delete", errx.Error())
+							internal.LogError("json/AwsSesNotification/delete", errx.Error())
 						}
 						continue
 					}
 					out, err := aso.fetchMessage(&asn)
 					if err != nil {
-						err = LogError("aso/fetchMessage: msg=%v err=%v", asn.Mail.MessageId, err.Error())
+						err = internal.LogError("aso/fetchMessage: msg=%v err=%v", asn.Mail.MessageId, err.Error())
 						errx := aso.deleteMessage(&asn, &msg)
 						if errx != nil {
-							LogError("json/fetchMessage/delete", errx.Error())
+							internal.LogError("json/fetchMessage/delete", errx.Error())
 						}
 						continue
 					}
@@ -349,20 +351,20 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 					}
 					if !retry && err != nil {
 						// abort send if error is not retryable
-						LogError(mailComponent, "msg=%s abort=%v from=%s to=%v", asn.Mail.MessageId, err.Error(), from, asn.Mail.CommonHeaders.To)
+						internal.LogError(mailComponent, "msg=%s abort=%v from=%s to=%v", asn.Mail.MessageId, err.Error(), from, asn.Mail.CommonHeaders.To)
 					} else {
 						if err != nil {
 							// retryable error
-							err = LogError(mailComponent, "msg=%s err=%v from=%s to=%v", asn.Mail.MessageId, err.Error(), from, rcpt)
+							err = internal.LogError(mailComponent, "msg=%s err=%v from=%s to=%v", asn.Mail.MessageId, err.Error(), from, rcpt)
 						} else {
 							// all good
-							Log(mailComponent, "sent msg=%s from=%s to=%v", asn.Mail.MessageId, from, rcpt)
+							internal.Log(mailComponent, "sent msg=%s from=%s to=%v", asn.Mail.MessageId, from, rcpt)
 						}
 					}
 					if retry {
 						err = aso.sendRetryMessage(&asm, &asn)
 						if err != nil {
-							LogError("sqs/sendRetryMessage", "err=%v msg=%v", err.Error(), asn.Mail.MessageId)
+							internal.LogError("sqs/sendRetryMessage", "err=%v msg=%v", err.Error(), asn.Mail.MessageId)
 						}
 						// delete message from queue if retry is queued
 						retry = false
@@ -371,12 +373,12 @@ func (aso *AwsSesObserver) Observe(cnts ...int) error {
 						// delete message from queue if not retryable
 						err = aso.deleteMessage(&asn, &msg)
 						if err != nil {
-							err = LogError("sqs/deleteMessage: err=%v msg=%v", err.Error(), asn.Mail.MessageId)
+							err = internal.LogError("sqs/deleteMessage: err=%v msg=%v", err.Error(), asn.Mail.MessageId)
 							continue
 						}
 					}
 				} else {
-					err = LogError("AwsSesMessage", "unknown message type, %s", asm.Type)
+					err = internal.LogError("AwsSesMessage", "unknown message type, %s", asm.Type)
 				}
 			}
 		}

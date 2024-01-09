@@ -1,6 +1,6 @@
 module github.com/blueimp/aws-smtp-relay
 
-go 1.19
+go 1.21
 
 require (
 	github.com/aws/aws-sdk-go-v2/service/pinpointemail v1.12.4
