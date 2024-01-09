@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "awsSmtpRelay.fullname" . }}
+  labels: {{ include "awsSmtpRelay.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.awsSmtpRelay.relay.service.type| default "ClusterIP" }}
+  ports:
+    - port: {{ .Values.awsSmtpRelay.relay.addr.port }}
+      targetPort: {{ .Values.awsSmtpRelay.relay.addr.port }}
+      protocol: TCP
+      name: smtp
+  selector:
+    app.kubernetes.io/component: awsSmtpRelay
+    {{- include "awsSmtpRelay.selectorLabels" . | nindent 4 }}

@@ -7,7 +7,10 @@ PROJECT=aws-smtp-relay
 BIN_PATH = $(GOPATH)/bin/$(PROJECT)
 
 # Files that require a rebuild on change:
-DEPS = internal/relay/relay.go main.go
+DIRS = internal internal/auth internal/receiver internal/receiver/aws_ses internal/relay \
+	internal/relay/pinpoint internal/relay/config internal/relay/ses \
+	internal/relay/filter internal/relay/client
+DEPS = main.go $(wildcard *.go $(foreach fd, $(DIRS), $(fd)/*.go))
 
 
 # --- Main targets ---

@@ -1,0 +1,127 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "awsSmtpRelay.fullname" . }}
+  labels: {{ include "awsSmtpRelay.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    {{- toYaml .Values.awsSmtpRelay.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "awsSmtpRelay.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: awsSmtpRelay
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.awsSmtpRelay.annotations }}
+        {{ . | toYaml | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "awsSmtpRelay.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: awsSmtpRelay
+        {{- with .Values.awsSmtpRelay.labels }}
+        {{ . | toYaml | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "awsSmtpRelay.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: aws-smtp-relay
+          args:
+            - "--SES.Bucket.KeyPrefix"
+            - {{ .Values.awsSmtpRelay.observer.bucket.keyPrefix }}
+            - "--SES.Bucket.Name"
+            - {{ .Values.awsSmtpRelay.observer.bucket.name }}
+            - "--SES.ObserverEnable"
+            - "{{ ternary "true" "false" .Values.awsSmtpRelay.observer.enable }}"
+            - "--SES.SQS.MaxMessages"
+            - "{{ .Values.awsSmtpRelay.observer.SQS.maxMessages }}"
+            - "--SES.SQS.Name"
+            - {{ .Values.awsSmtpRelay.observer.SQS.name }}
+            - "--SES.SQS.Timeout"
+            - "{{ .Values.awsSmtpRelay.observer.SQS.timeout }}"
+            - "--SES.SQS.WaitTime"
+            - "{{ .Values.awsSmtpRelay.observer.sqs.waittime }}"
+            - "--SES.Smtp.Host"
+            - {{ .Values.awsSmtpRelay.observer.smtp.host }}
+            - "--SES.Smtp.Port"
+            - "{{ .Values.awsSmtpRelay.observer.smtp.port }}"
+            - "--SES.Smtp.ConnectionTLS"
+            - "{{ ternary "true" "false" .Values.awsSmtpRelay.observer.smtp.connectionTLS }}"
+            - "--SES.Smtp.ForceSTARTTLS"
+            - "{{ ternary "true" "false " .Values.awsSmtpRelay.observer.smtp.forceSTARTTLS }}"
+            - "--SES.Smtp.InsecureTLS"
+            - "{{ ternary "true" "false" .Values.awsSmtpRelay.observer.smtp.insecureTLS }}"
+            - "--SES.Smtp.Identity"
+            - {{ .Values.awsSmtpRelay.observer.smtp.identity }}
+            - "--SES.Smtp.MyName"
+            - {{ .Values.awsSmtpRelay.observer.smtp.myName }}
+            - "--SES.Smtp.Pass"
+            - {{ .Values.awsSmtpRelay.observer.smtp.pass }}
+            - "--SES.Smtp.User"
+            - {{ .Values.awsSmtpRelay.observer.smtp.user }}
+            - "--addr"
+            - "{{ .Values.awsSmtpRelay.relay.addr.host }}:{{ .Values.awsSmtpRelay.relay.addr.port }}"
+            - "--name"
+            - {{ .Values.awsSmtpRelay.relay.name }}
+            - "--host"
+            - {{ .Values.awsSmtpRelay.relay.host }}
+            - "--certFile"
+            - {{ .Values.awsSmtpRelay.relay.certFile }}
+            - "--keyFile"
+            - {{ .Values.awsSmtpRelay.relay.keyFile }}
+            - "--startTLS"
+            - "{{ ternary "true" "false" .Values.awsSmtpRelay.relay.startTLS }}"
+            - "--onlyTLS"
+            - "{{ ternary "true" "false"  .Values.awsSmtpRelay.relay.onlyTLS }}"
+            - "--relayAPI"
+            - {{ .Values.awsSmtpRelay.relay.relayAPI }}
+            - "--setName"
+            - {{ .Values.awsSmtpRelay.relay.setName }}
+            - "--ips"
+            - {{ .Values.awsSmtpRelay.relay.ips }}
+            - "--user"
+            - {{ .Values.awsSmtpRelay.relay.user }}
+            - "--allowFrom"
+            - {{ .Values.awsSmtpRelay.relay.allowFrom }}
+            - "--denyTo"
+            - {{ .Values.awsSmtpRelay.relay.denyTo }}
+          env:
+            - name: AWS_REGION
+              value: {{ .Values.awsSmtpRelay.region }}
+            {{- with .Values.awsSmtpRelay.env }}
+            {{ . | toYaml | nindent 12 }}
+            {{- end }}
+          image: "{{ .Values.image.repository }}:{{ include "awsSmtpRelay.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.awsSmtpRelay.securityContext | nindent 12 }}
+          ports:
+            - name: smtp
+              containerPort: {{ int .Values.awsSmtpRelay.relay.addr.port }}
+              protocol: TCP
+          {{- with .Values.awsSmtpRelay.livenessProbe }}
+          livenessProbe:
+            {{- . | toYaml | nindent 12 }}
+          {{- end }}
+          {{- with .Values.awsSmtpRelay.readinessProbe }}
+          readinessProbe:
+            {{- . | toYaml | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.awsSmtpRelay.resources | nindent 12 }}
+      {{- with .Values.awsSmtpRelay.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccount: {{ .Values.awsSmtpRelay.serviceAccount.name }}
+      serviceAccountName: {{ .Values.awsSmtpRelay.serviceAccount.name }}
+    {{- with .Values.awsSmtpRelay.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.awsSmtpRelay.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
